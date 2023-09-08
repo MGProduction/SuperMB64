@@ -61,6 +61,9 @@ _fbox*    world;
 _fbox     worlds[8]; 
 short     lives,coins,score,secs;
 
+/*_fpos     logz[8192];
+int       ilog;*/
+
 // ************************************************************
 
 int ingame_enter(_game*gm)
@@ -339,13 +342,21 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
 
 int handle_aabbcollisioncore(_aabb*box,_fpos*delta)
 {
- int      id=0,txx,tyy,x,y,tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh,cnt=0;
+ int      id=0,txx,tyy,x,y,tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh,cnt=0,ay,by,ax,bx;
  word    *map=&level.maps[level.tilemap[id].mappos];
  txx=f2int((box->x+box->w/2)/tw);
  tyy=f2int((box->y+box->h/2)/th);  
- for(y=-1;y<=1;y++)
+ if(delta->x>0) {ax=0;bx=2;}
+ else
+ if(delta->x<0) {ax=-2;bx=0;}
+ else           {ax=-1;bx=1;}
+ if(delta->y>0) {ay=0;by=2;}
+ else
+ if(delta->y<0) {ay=-2;by=0;}
+ else           {ay=-1;by=1;}
+ for(y=ay;y<=by;y++)
   if(isbetween(tyy+y,0,level.tilemap[id].maph-1))
-   for(x=-1;x<=1;x++)
+   for(x=ax;x<=bx;x++)
     if(isbetween(txx+x,0,level.tilemap[id].mapw-1))
      if(isbetween(map[(txx+x)+(tyy+y)*level.tilemap[id].mapw],tile_solid_start,tile_solid_end))
       {
@@ -361,8 +372,8 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta)
 
 int handle_collisions(_act*c,_fpos*delta)
 {
- _aabb box;
- act_getaabb(c,&box);
+ _aabb box; 
+ act_getaabb(c,&box); 
  if(handle_aabbcollisioncore(&box,delta))
   return 1;
  return 0;
@@ -497,6 +508,12 @@ int hero_play(_game*gm,_act*hero)
    if(hero->dpos.x||hero->dpos.y)
     {
      _fpos delta={hero->dpos.x,hero->dpos.y};
+     
+     /*logz[ilog++]=hero->pos;
+     logz[ilog++]=hero->dpos;
+     if(ilog==8192)
+      ilog=0;*/
+
      if(handle_collisions(hero,&delta))
       {
        if(hero->dpos.x!=delta.x)

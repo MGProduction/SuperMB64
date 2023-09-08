@@ -380,7 +380,7 @@ int act_ontheground(_act*c)
 
 int goomba_play(_game*gm,_act*goomba)
 {
- if(!fbox_ispointinborder(&goomba->pos,world,GAME_WIDTH,16))
+ if(!fbox_ispointinborder(&goomba->pos,world,(float)(GAME_WIDTH*2),(float)16))
   return 0;
  if(!act_ontheground(goomba))
    goomba->dpos.y=float_min(goomba->dpos.y+gravity,hero_maxfallspeed);

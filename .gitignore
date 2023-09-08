@@ -61,5 +61,5 @@ src/mg/ase*
 src/stb
 
 *.ncb
-*.vcproj*
+*.vcproj.*
 *.suo

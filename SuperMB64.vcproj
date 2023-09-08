@@ -276,11 +276,15 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 			<File
-				RelativePath=".\SuperMB64.ico"
+				RelativePath=".\vs2008\resource.h"
 				>
 			</File>
 			<File
-				RelativePath=".\SuperMB64.rc"
+				RelativePath=".\vs2008\SuperMB64.ico"
+				>
+			</File>
+			<File
+				RelativePath=".\vs2008\SuperMB64.rc"
 				>
 			</File>
 		</Filter>

@@ -156,7 +156,7 @@ int game_getinput(_game*gm)
           if( event->data.key == APP_KEY_CONTROL ) gm->input.key_control = true;
 #if defined(_DEBUG)
           if( event->data.key == APP_KEY_F10 ) {
-           stbi_write_png("screenshot.png",canvas.w,canvas.h,4,canvas.col,0);
+           stbi_write_png("bin/screenshot.png",canvas.w,canvas.h,4,canvas.col,0);
           }
 #endif
           if( event->data.key == APP_KEY_F11 ) {

@@ -59,3 +59,7 @@ res
 *.html
 src/mg/ase*
 src/stb
+
+*.ncb
+*.vcproj*
+*.suo

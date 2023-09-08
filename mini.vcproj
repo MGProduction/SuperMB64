@@ -2,7 +2,7 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9,00"
-	Name="mini"
+	Name="SuperMB64"
 	ProjectGUID="{F5395DF9-1417-45F7-AEEC-B4F9FC3FCD56}"
 	RootNamespace="mini"
 	Keyword="Win32Proj"

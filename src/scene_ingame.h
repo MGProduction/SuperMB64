@@ -32,12 +32,15 @@
 #define status_normal 0
 #define status_jump   1
 
+#define ground_friction   0.2f
+#define air_friction      0.1f
 #define hero_speed        0.25f
 #define hero_maxspeed     2
 #define hero_jumpspeed    1
 #define hero_topjumpspeed 5
 #define hero_maxfallspeed 6
-#define gravity           0.9f
+#define gravityup         0.7f
+#define gravitydown       1.2f
 #define goomba_speed      0.5f
 
 // ************************************************************
@@ -237,7 +240,8 @@ void canvas_update(_game*gm)
 void camera_update(_game*gm)
 {
  _framedesc*fr=getframe(hero);
- int        w=fr->w/2;
+ float      w=fr->w/2;
+ float      h=fr->h;
  
  if((hero->pos.x+w)-cam.x>GAME_WIDTH*3/5)
   cam.x=(hero->pos.x+w)-GAME_WIDTH*3/5;
@@ -250,16 +254,16 @@ void camera_update(_game*gm)
   if(cam.x+GAME_WIDTH>world->x2)
    cam.x=(float)(world->x2-GAME_WIDTH);
 
- if((hero->pos.y+w)-cam.y>GAME_WIDTH*3/5)
-  cam.y=(hero->pos.y+w)-GAME_WIDTH*3/5;
- if((hero->pos.y-w)-cam.x<GAME_WIDTH*2/5)
-  cam.y=(hero->pos.y-w)-GAME_WIDTH*2/5;
+ if(hero->pos.y-cam.y>GAME_HEIGHT*3/5)
+  cam.y=hero->pos.y-GAME_HEIGHT*3/5;
+ if((hero->pos.y-h)-cam.y<GAME_HEIGHT*2/5)
+  cam.y=(hero->pos.y-h)-GAME_HEIGHT*2/5;
 
  if(cam.y<world->y1) 
   cam.y=world->y1;
  else
   if(cam.y+GAME_WIDTH>world->y2)
-   cam.y=(float)(world->y2-GAME_WIDTH);
+   cam.y=(float)(world->y2-GAME_HEIGHT);
 
  if(forcedforward)
   world->x1=float_max(world->x1,cam.x-GAME_WIDTH);
@@ -383,7 +387,7 @@ int goomba_play(_game*gm,_act*goomba)
  if(!fbox_ispointinborder(&goomba->pos,world,(float)(GAME_WIDTH*2),(float)16))
   return 0;
  if(!act_ontheground(goomba))
-   goomba->dpos.y=float_min(goomba->dpos.y+gravity,hero_maxfallspeed);
+   goomba->dpos.y=float_min(goomba->dpos.y+gravitydown,hero_maxfallspeed);
  if(goomba->flags&sprite_hflip)
   goomba->dpos.x=-goomba_speed;
  else
@@ -431,6 +435,7 @@ int hero_play(_game*gm,_act*hero)
   ;
  else
   {
+   int onground=act_ontheground(hero);
    if(gm->input.key_left)
     {
      if(hero->dpos.x>=-hero_maxspeed)
@@ -445,14 +450,24 @@ int hero_play(_game*gm,_act*hero)
       if(hero->flags&sprite_hflip) hero->flags-=sprite_hflip;      
      }    
     else
-     if(hero->dpos.x>0)
-      hero->dpos.x=float_max(0,hero->dpos.x-hero_speed);
-     else
-      if(hero->dpos.x<0)
-      hero->dpos.x=float_min(0,hero->dpos.x+hero_speed);
+     {
+      float friction;
+      if(onground)
+       friction=ground_friction;
+      else
+       friction=air_friction;
+      if(hero->dpos.x>0)
+       hero->dpos.x=float_max(0,hero->dpos.x-friction);
+      else
+       if(hero->dpos.x<0)
+        hero->dpos.x=float_min(0,hero->dpos.x+friction);
+     }
    
-    if((hero->dpos.y<0)||(!act_ontheground(hero)))
-     hero->dpos.y=float_min(hero->dpos.y+gravity,hero_maxfallspeed);
+    if((hero->dpos.y<0)||(!onground))
+     if(hero->dpos.y<0)
+      hero->dpos.y=float_min(hero->dpos.y+gravityup,hero_maxfallspeed);
+     else
+      hero->dpos.y=float_min(hero->dpos.y+gravitydown,hero_maxfallspeed);
     else     
       if(hero->status==status_jump)
        hero->status=status_normal;
@@ -491,11 +506,12 @@ int hero_play(_game*gm,_act*hero)
      else
       if(hero->pos.x>world->x2)
        hero->pos.x=world->x2;
-
-     camera_update(gm);
+     
     }
    else
     act_setanim(hero,anim_idle); 
+
+   camera_update(gm);
   }
  return 1;
 }

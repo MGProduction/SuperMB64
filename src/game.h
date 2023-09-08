@@ -192,9 +192,9 @@ int act_setanim(_act*a,int animid)
 void act_draw(_act*a)
 {
  _framedesc*fr=getframe(a);
- int        fw=fr->w,fh=fr->h;
+ float      fw=fr->w,fh=fr->h;
  _fpos      p;
- p.x=a->pos.x-cam.x;p.y=a->pos.y-cam.y;
+ p.x=a->pos.x-floor(cam.x);p.y=a->pos.y-floor(cam.y);
  if((p.x>GAME_WIDTH)||(p.x+fr->w<0))
   ;
  else

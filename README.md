@@ -1,6 +1,6 @@
 # SuperMB64 [work in progess]
 
-![alt text](doc/SuperMB64.png)
+![alt text](doc/SuperMB64.gif)
 
 Yet Another Super Mario Bros clone (World 1x1 only) - with a LowRezJam-like resolution (64x64 pixel)
 

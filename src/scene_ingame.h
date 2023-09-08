@@ -39,7 +39,8 @@
 #define hero_jumpspeed    1
 #define hero_topjumpspeed 5
 #define hero_maxfallspeed 6
-#define gravityup         0.7f
+#define gravityup         0.8f
+#define gravityuppow      0.4f
 #define gravitydown       1.2f
 #define goomba_speed      0.5f
 
@@ -464,10 +465,18 @@ int hero_play(_game*gm,_act*hero)
      }
    
     if((hero->dpos.y<0)||(!onground))
-     if(hero->dpos.y<0)
-      hero->dpos.y=float_min(hero->dpos.y+gravityup,hero_maxfallspeed);
-     else
-      hero->dpos.y=float_min(hero->dpos.y+gravitydown,hero_maxfallspeed);
+     {
+      float gravity;
+      if(hero->dpos.y<0)
+       if(gm->input.key_up)
+        gravity=gravityuppow;
+       else
+        gravity=gravityup;
+      else
+       gravity=gravitydown;
+
+      hero->dpos.y=float_min(hero->dpos.y+gravity,hero_maxfallspeed);
+     }
     else     
       if(hero->status==status_jump)
        hero->status=status_normal;
@@ -478,7 +487,7 @@ int hero_play(_game*gm,_act*hero)
       {
        act_setanim(hero,anim_jump);
        hero->status=status_jump;
-       hero->dpos.y-=hero_topjumpspeed+abs(hero->dpos.x);
+       hero->dpos.y-=hero_topjumpspeed+float_min(0.5f,abs(hero->dpos.x));
       }
     }
    else

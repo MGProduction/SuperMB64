@@ -1,4 +1,4 @@
-# SuperMB64
+# SuperMB64 [work in progess]
 
 ![alt text](doc/SuperMB64.png)
 

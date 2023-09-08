@@ -17,10 +17,12 @@
 #define tile_background_blockQ2 9
 #define tile_background_blockQ3 10
 
-#define tile_background_pipeA   11
-#define tile_background_pipeZ   22
+#define tile_background_blockQX 11
 
-#define tile_background_coin    23
+#define tile_background_pipeA   12
+#define tile_background_pipeZ   23
+
+#define tile_background_coin    24
 
 #define tile_solid_start        tile_background_groundA 
 #define tile_solid_end          tile_background_pipeZ
@@ -60,6 +62,10 @@ _tilemaps level;
 _fbox*    world;
 _fbox     worlds[8]; 
 short     lives,coins,score,secs;
+
+byte      blockQ[]={tile_background_blockQ1,tile_background_blockQ2,tile_background_blockQ3,tile_background_blockQ2};
+short     blockhitX=-1,blockhitY=-1,blockhitT=0,colX,colY,colKIND;
+byte      blockdisplacement[]={1,2,3,3,2,1,0};
 
 /*_fpos     logz[8192];
 int       ilog;*/
@@ -160,7 +166,7 @@ int ingame_leave(_game*gm,_scene*next)
 
 void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
 {
- int      x,y,t=0,played=0;
+ int      x,y,tx=0,ty,t=0,played=0;
  word    *map=&tm->maps[tm->tilemap[t].mappos];
  word     tw=tm->tilemap[t].tilew,th=tm->tilemap[t].tileh;
  for(y=0;y<tm->tilemap[t].maph;y++)
@@ -181,8 +187,27 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
         word     tile=map[x+y*tm->tilemap[t].mapw];
         if(tile)
          {
-          int tx=0,ty=th*tile;
-          img_blit(canvas,bx+x*tw-cx,by+y*th-cy,i,tx,ty,tw,th,0);
+          if(tile==tile_background_blockQ1)
+           tile=blockQ[(secs/(GAME_FRAMERATE/2))%sizeof(blockQ)];
+          ty=th*tile;
+          if((blockhitX==x)&&(blockhitY==y))
+           {
+            int displacement;
+            ty=tile_background_blue*th;
+            img_blit(canvas,bx+x*tw-cx,by+y*th-cy,i,tx,ty,tw,th,0);
+            displacement=blockdisplacement[(blockhitT/(GAME_FRAMERATE/15))];
+            ty=th*tile;
+            img_blit(canvas,bx+x*tw-cx,by+y*th-cy-displacement,i,tx,ty,tw,th,0);
+            blockhitT++;
+            if((blockhitT/(GAME_FRAMERATE/15))>=sizeof(blockdisplacement))
+             {
+              blockhitX=blockhitY=-1;blockhitT=0;
+              if(map[x+y*tm->tilemap[t].mapw]==tile_background_blockQ1)
+               map[x+y*tm->tilemap[t].mapw]=tile_background_blockQX;
+             }
+           }
+          else
+           img_blit(canvas,bx+x*tw-cx,by+y*th-cy,i,tx,ty,tw,th,0);
           played++;
          }
        }
@@ -358,15 +383,21 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta)
   if(isbetween(tyy+y,0,level.tilemap[id].maph-1))
    for(x=ax;x<=bx;x++)
     if(isbetween(txx+x,0,level.tilemap[id].mapw-1))
-     if(isbetween(map[(txx+x)+(tyy+y)*level.tilemap[id].mapw],tile_solid_start,tile_solid_end))
-      {
-       _aabb tile;
-       tile.x=(float)(txx+x)*tw;
-       tile.y=(float)(tyy+y)*th;
-       tile.w=(float)tw;tile.h=(float)th;
-       if(aabb_intersect(box,&tile,delta))
-        cnt++;
-      }
+     {
+      word what=map[(txx+x)+(tyy+y)*level.tilemap[id].mapw];
+      if(isbetween(what,tile_solid_start,tile_solid_end))
+       {
+        _aabb tile;
+        tile.x=(float)(txx+x)*tw;
+        tile.y=(float)(tyy+y)*th;
+        tile.w=(float)tw;tile.h=(float)th;
+        if(aabb_intersect(box,&tile,delta))
+        {
+         colX=txx+x;colY=tyy+y;colKIND=what;
+         cnt++;
+        }
+       }
+     }
  return cnt;
 }
 
@@ -507,15 +538,14 @@ int hero_play(_game*gm,_act*hero)
      }   
    if(hero->dpos.x||hero->dpos.y)
     {
-     _fpos delta={hero->dpos.x,hero->dpos.y};
-     
-     /*logz[ilog++]=hero->pos;
-     logz[ilog++]=hero->dpos;
-     if(ilog==8192)
-      ilog=0;*/
-
+     _fpos delta={hero->dpos.x,hero->dpos.y};     
      if(handle_collisions(hero,&delta))
       {
+       
+       if(isbetween(colKIND,tile_background_wallA,tile_background_wallB)||(colKIND==tile_background_blockQ1))
+        if(hero->dpos.y<0)
+         {blockhitX=colX;blockhitY=colY;blockhitT=0;}
+
        if(hero->dpos.x!=delta.x)
         hero->dpos.x=0;
        if(hero->dpos.y!=delta.y)

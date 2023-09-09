@@ -81,7 +81,7 @@ void img_box(_img*idst,int x,int y,int w,int h,dword col)
  dword*canvas=idst->col;
  for(yy=0;yy<h;yy++)
   if(isbetween(y+yy,0,hh-1))
-   for(xx=0;xx<h;xx++)
+   for(xx=0;xx<w;xx++)
     if(isbetween(x+xx,0,ww-1))
     {
      byte alpha=(col&0xFF000000)>>24;

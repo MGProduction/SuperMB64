@@ -1,0 +1,40 @@
+#title=SuperMB64
+#path=SMB
+#width=64
+#height=64
+
+font=sprite_font.ase
+
+// logo
+splash=../SHR/mglogo.png
+
+// home
+
+// ingame
+
+// level
+world_1x1=tilemap_smbw1x1.ase
+
+gui=sprite_gui.ase
+
+mario=sprite_minimario.ase
+goomba=sprite_minigoomba.ase
+greentroopa=sprite_minigreentroopa.ase
+
+coin=sprite_coin.ase
+
+fireflower=sprite_fireflower.ase
+star=sprite_star.ase
+
+magicmushroom=sprite_magicmushroom.ase
+mushroom1up=sprite_mushroom1up.ase
+
+fireball=sprite_fireball.ase
+fireballhit=sprite_fireballhit.ase
+
+poleflag=sprite_poleflag.ase
+castleflag=sprite_castleflag.ase
+
+brickfragments=sprite_brickfragments.ase
+
+

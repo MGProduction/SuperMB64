@@ -55,7 +55,7 @@ bin
 binary/*.pdb
 minicompiler
 wasm
-res
+
 *.bat
 *.html
 src/mg/ase*

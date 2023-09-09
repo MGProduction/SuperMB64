@@ -136,6 +136,66 @@ int GAME_WIDTH,GAME_HEIGHT,GAME_FRAMERATE;
 #include "scene_ingame.h"
 
 // ************************************************************
+// startup code
+// ************************************************************
+
+_anim font;
+
+void game_start(_game*game)
+{
+ anim_load(&font,"font");
+#if defined(_DEBUG)
+ game->scene=&ingame;
+#else
+ game->scene=&splash;
+#endif
+
+ game->scene->enter(game);
+}
+
+void game_end(_game*game)
+{
+ anim_unload(&font);
+ game->scene->leave(game,NULL);
+}
+
+void gui_drawstring(int x,int y,const char*sz)
+{
+ int w=3,h=6;
+ while(*sz)
+  {
+   char ch=*sz++;
+   int  v=0;
+   if(ch==' ')
+    x+=2;
+   else
+    {
+     if(isbetween(ch,'A','Z'))
+      v=ch-'A';
+     else
+      if(isbetween(ch,'0','9'))
+      v=28+(ch-'0');
+     img_blit(&canvas,x,y,&font.atlas,v*w,0,w,h,0);
+     if(ch=='I')
+      x+=2;
+     else
+      x+=4;
+    }
+  }
+}
+
+void gui_drawdigits(int x,int y,int val,int digitcnt)
+{
+ int digit=28,w=3,h=6;
+ x+=4*(digitcnt-1);
+ while(digitcnt--)
+  {
+   img_blit(&canvas,x,y,&font.atlas,(digit+(val%10))*w,0,w,h,0);
+   val/=10;x-=4;
+  }
+}
+
+// ************************************************************
 // framework-related code - based on Mattias Gustavsson sample projects
 // ************************************************************
 
@@ -245,14 +305,7 @@ int app_proc( app_t* app, void* user_data )
 
     img_new(&canvas,GAME_WIDTH,GAME_HEIGHT);
 
-    //camera_update();    
-#if defined(_DEBUG)
-    game.scene=&ingame;
-#else
-    game.scene=&splash;
-#endif
-
-    game.scene->enter(&game);
+    game_start(&game);
 
     while( app_yield( app ) != APP_STATE_EXIT_REQUESTED )
     {
@@ -265,7 +318,7 @@ int app_proc( app_t* app, void* user_data )
         app_present( app, canvas.col, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0x000000 );
     }
 
-    game.scene->leave(&game,NULL);
+    game_end(&game);    
     
     img_delete(&canvas);
 

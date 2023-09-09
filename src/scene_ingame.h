@@ -2,27 +2,24 @@
 // INGAME CODE
 // ************************************************************
 
-#define tile_background_blue    1
-#define tile_background_black   2
+#define tile_background_groundA 1
+#define tile_background_groundB 2
 
-#define tile_background_groundA 3
-#define tile_background_groundB 4
+#define tile_background_wallA   3
+#define tile_background_wallB   4
 
-#define tile_background_wallA   5
-#define tile_background_wallB   6
+#define tile_background_block   5
 
-#define tile_background_block   7
+#define tile_background_blockQ1 6
+#define tile_background_blockQ2 7
+#define tile_background_blockQ3 8
 
-#define tile_background_blockQ1 8
-#define tile_background_blockQ2 9
-#define tile_background_blockQ3 10
+#define tile_background_blockQX 9
 
-#define tile_background_blockQX 11
+#define tile_background_pipeA   10
+#define tile_background_pipeZ   21
 
-#define tile_background_pipeA   12
-#define tile_background_pipeZ   23
-
-#define tile_background_coin    24
+#define tile_background_coin    22
 
 #define tile_solid_start        tile_background_groundA 
 #define tile_solid_end          tile_background_pipeZ
@@ -33,6 +30,7 @@
 
 #define status_normal 0
 #define status_jump   1
+#define status_dead   2
 
 #define ground_friction   0.2f
 #define air_friction      0.1f
@@ -50,6 +48,7 @@
 
 void camera_update(_game*gm);
 int  hero_play(_game*gm,_act*hero);
+void hero_killed(_act*hero);
 int  goomba_play(_game*gm,_act*hero);
 
 // ************************************************************
@@ -164,6 +163,41 @@ int ingame_leave(_game*gm,_scene*next)
  return 1;
 }
 
+void background_blit(_img*canvas,int bx,int by,int bw,int bh)
+{
+ img_box(canvas,bx,by,bw,bh,0xfffc945c);
+}
+
+void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
+{
+ int      x,y,tx=0,ty,t=0,played=0;
+ word    *map=&tm->maps[tm->tilemap[t].mappos];
+ word     tw=tm->tilemap[t].tilew,th=tm->tilemap[t].tileh;
+ for(y=0;y<tm->tilemap[t].maph;y++)
+  if(by+y*th-cy+th<0)
+    ;
+   else
+   if(by+y*th-cy>canvas->h)
+    break;
+   else
+    for(x=0;x<tm->tilemap[t].mapw;x++)
+     if(bx+x*tw-cx+tw<0)
+      ;
+     else
+      if(bx+x*tw-cx>canvas->w)
+       break;
+      else
+       {
+        word     tile=map[224+y*tm->tilemap[t].mapw];
+        if(tile)
+         {
+          ty=th*tile;
+          img_blit(canvas,bx+x*tw-cx,by+y*th-cy,i,tx,ty,tw,th,0);
+          played++;
+         }
+       }
+}
+
 void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
 {
  int      x,y,tx=0,ty,t=0,played=0;
@@ -192,10 +226,7 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
           ty=th*tile;
           if((blockhitX==x)&&(blockhitY==y))
            {
-            int displacement;
-            ty=tile_background_blue*th;
-            img_blit(canvas,bx+x*tw-cx,by+y*th-cy,i,tx,ty,tw,th,0);
-            displacement=blockdisplacement[(blockhitT/(GAME_FRAMERATE/15))];
+            int displacement=blockdisplacement[(blockhitT/(GAME_FRAMERATE/15))];
             ty=th*tile;
             img_blit(canvas,bx+x*tw-cx,by+y*th-cy-displacement,i,tx,ty,tw,th,0);
             blockhitT++;
@@ -216,42 +247,35 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
 void gui_draw()
 {
  int y=1,x=1,w=6,rsecs=secs/GAME_FRAMERATE,digit=3;
-
- img_blit(&canvas,x,y,&gui.atlas,0*w,0,6,6,0);x+=6;
- img_blit(&canvas,x,y,&gui.atlas,2*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+lives)*w,0,6,6,0);x+=4;
+ int marioid=2,coinid=0,xid=1;
+ 
+ img_blit(&canvas,x,y,&gui.atlas,marioid*w,0,6,6,0);x+=6;
+ img_blit(&canvas,x,y,&gui.atlas,xid*w,0,6,6,0);x+=4;
+ gui_drawdigits(x,y,lives,1);
 
  y=7;x=2;
- img_blit(&canvas,x,y,&gui.atlas,1*w,0,6,6,0);x+=4;x++;
- img_blit(&canvas,x,y,&gui.atlas,2*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+(coins/10))*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+(coins%10))*w,0,6,6,0);x+=4;
+ img_blit(&canvas,x,y,&gui.atlas,coinid*w,0,6,6,0);x+=4;x++;
+ img_blit(&canvas,x,y,&gui.atlas,xid*w,0,6,6,0);x+=4;
+ gui_drawdigits(x,y,coins,2);
 
  y=1;x=(GAME_WIDTH-3*6)/2+1;
- img_blit(&canvas,x,y,&gui.atlas,(15+0)*w,0,6,6,0);x+=6;
- img_blit(&canvas,x,y,&gui.atlas,(15+1)*w,0,6,6,0);x+=6;
- img_blit(&canvas,x,y,&gui.atlas,(15+2)*w,0,6,6,0);x+=6;
+ gui_drawstring(x,y,"SCORE");
  y=7;x=(GAME_WIDTH-6*4)/2+2;
- img_blit(&canvas,x,y,&gui.atlas,(digit+0)*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+0)*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+0)*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+0)*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+0)*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+0)*w,0,6,6,0);x+=4;
+ gui_drawdigits(x,y,score,6);
 
  y=1;x=GAME_WIDTH-6*2-2;
- img_blit(&canvas,x,y,&gui.atlas,(13+0)*w,0,6,6,0);x+=6;
- img_blit(&canvas,x,y,&gui.atlas,(13+1)*w,0,6,6,0);x+=6;
+ gui_drawstring(x,y,"TIME");
  y=7;x=GAME_WIDTH-4*3-1;
- img_blit(&canvas,x,y,&gui.atlas,(digit+(rsecs/100))*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+(rsecs%100)/10)*w,0,6,6,0);x+=4;
- img_blit(&canvas,x,y,&gui.atlas,(digit+(rsecs%100)%10)*w,0,6,6,0);x+=4;
+ gui_drawdigits(x,y,rsecs,3);
 
 }
 
 void canvas_update(_game*gm)
 {
  int     i;
+
+ tilebackground_blit(&canvas,0,0,GAME_WIDTH,GAME_HEIGHT,&level,&offscreen,f2int(cam.x),f2int(cam.y));
+
  tilemap_blit(&canvas,0,0,GAME_WIDTH,GAME_HEIGHT,&level,&offscreen,f2int(cam.x),f2int(cam.y));
  
  qsort(&pactors[0],actors_count,sizeof(pactors[0]),actors_ysort);
@@ -291,7 +315,7 @@ void camera_update(_game*gm)
  if(cam.y<world->y1) 
   cam.y=world->y1;
  else
-  if(cam.y+GAME_WIDTH>world->y2)
+  if(cam.y+GAME_HEIGHT>world->y2)
    cam.y=(float)(world->y2-GAME_HEIGHT);
 
  if(forcedforward)
@@ -429,6 +453,8 @@ int goomba_play(_game*gm,_act*goomba)
 {
  if(!fbox_ispointinborder(&goomba->pos,world,(float)(GAME_WIDTH*2),(float)16))
   return 0;
+ if(goomba->animid==anim_die)
+  return 1;
  if(!act_ontheground(goomba))
    goomba->dpos.y=float_min(goomba->dpos.y+gravitydown,hero_maxfallspeed);
  if(goomba->flags&sprite_hflip)
@@ -437,10 +463,18 @@ int goomba_play(_game*gm,_act*goomba)
   goomba->dpos.x=+goomba_speed;
  if((fabs(goomba->pos.x-hero->pos.x)<10)&&(fabs(goomba->pos.y-hero->pos.y)<10))
   if(act_intersect(goomba,hero))
-   {
-    int k;
-    k=0;
-   }
+   if((hero->pos.y<goomba->pos.x+1)&&(hero->dpos.y>0)&&(hero->animid!=anim_die))
+    {
+     act_setanim(goomba,anim_die);score+=100;
+     act_setanim(hero,anim_jump);
+     hero->status=status_jump;
+     hero->dpos.y=-hero_topjumpspeed;
+    }
+   else
+    hero_killed(hero);
+ if(goomba->animid==anim_die)
+  ;
+ else
  if(goomba->dpos.x||goomba->dpos.y)
   {
    _fpos delta={goomba->dpos.x,goomba->dpos.y};
@@ -469,6 +503,16 @@ int goomba_play(_game*gm,_act*goomba)
  return 1;
 }
 
+void hero_killed(_act*hero)
+{
+ if(hero->status!=status_dead)
+  {
+   act_setanim(hero,anim_die);
+   hero->status=status_dead;
+   hero->dpos.y-=hero_topjumpspeed+float_min(0.5f,abs(hero->dpos.x));
+  }
+}
+
 int hero_play(_game*gm,_act*hero)
 {
  int move=0;
@@ -476,6 +520,18 @@ int hero_play(_game*gm,_act*hero)
   act_setanim(hero,anim_attack);
  if(hero->animid==anim_attack)
   ;
+ else
+ if(hero->animid==anim_die)
+  {
+   float gravity;
+   if(hero->dpos.y<0)
+    gravity=gravityup;
+   else
+    gravity=gravitydown/2;
+   hero->dpos.y=float_min(hero->dpos.y+gravity,hero_maxfallspeed);
+   hero->pos.y+=hero->dpos.y;
+   camera_update(gm);
+  }
  else
   {
    int onground=act_ontheground(hero);

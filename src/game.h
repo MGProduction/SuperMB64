@@ -6,6 +6,11 @@ _img    canvas;
 
 // ************************************************************
 
+void gui_drawdigits(int x,int y,int val,int digitcnt);
+void gui_drawstring(int x,int y,const char*sz);
+
+// ************************************************************
+
 #define float_min(x,y) ((x<y)?x:y)
 #define float_max(x,y) ((x>y)?x:y)
 #define f2int(a) ((int)floor(a))
@@ -250,8 +255,4 @@ int act_intersect(_act*a,_act*b)
 
 
 // ************************************************************
-
-
-
-
 

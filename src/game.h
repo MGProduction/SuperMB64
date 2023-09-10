@@ -130,6 +130,7 @@ int tilemap_load(_tilemaps*a,const char*name)
 #define sprite_vflip     2
 #define sprite_visible   4
 #define sprite_activated 8
+#define sprite_flashing  16
 #define sprite_used      128
 
 #define act_flashing     16
@@ -141,9 +142,10 @@ typedef struct __act{
  _fpos    pos;
  _fpos    dpos;
  _anim*   animset;
- byte     flags,status;
- dword    animid;
+ byte     flags,status,kind;
+ dword    animid,prevanimid;
  word     frame_cur,frame_from,frame_to,frame_speed,frame_time,frame_loop;
+ word     timer; 
  _actplay play;
 }_act;
 
@@ -151,6 +153,11 @@ _fpos   cam={0,0};
 _act    actors[MAX_ACTORS];
 _act*   pactors[MAX_ACTORS];
 byte    actors_count;
+
+void  actor_reset()
+{
+ memset(actors,0,sizeof(actors));
+}
 
 _act  *actor_get()
 {
@@ -194,17 +201,22 @@ int act_setanim(_act*a,int animid)
  return 0;
 }
 
-void act_draw(_act*a)
+void act_draw(_game*gm,_act*a)
 {
- _framedesc*fr=getframe(a);
- float      fw=fr->w,fh=fr->h;
- _fpos      p;
+ _fpos p;
  p.x=a->pos.x-floor(cam.x);p.y=a->pos.y-floor(cam.y);
- if((p.x>GAME_WIDTH)||(p.x+fr->w<0))
+ if((p.x-8>GAME_WIDTH)||(p.x+8<0))
   ;
  else
   if(a->flags&sprite_visible)
-   img_blit(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags);
+   {
+    _framedesc*fr=getframe(a);
+    float      fw=fr->w,fh=fr->h;
+    if((a->flags&sprite_flashing)&&((gm->tick%7)<2))
+     ;
+    else
+     img_blit(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags);
+   }
 
  if(a->animid)
   {
@@ -218,7 +230,10 @@ void act_draw(_act*a)
       if(a->frame_loop)
        a->frame_cur=a->frame_from;
       else
-       a->animid=0;
+       {
+        a->prevanimid=a->animid;
+        a->animid=0;
+       }
     }
   }
 }

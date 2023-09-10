@@ -26,7 +26,7 @@ typedef struct __game{
  bool             fullscreen;
  _scene          *scene;
  _input           input;
- dword            timer,maxtimer;
+ dword            timer,maxtimer,tick;
 
  int              error;
 

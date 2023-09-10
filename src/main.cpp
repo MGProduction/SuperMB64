@@ -314,6 +314,7 @@ int app_proc( app_t* app, void* user_data )
 #if defined(AUDIO_SUPPORT)
         audio_render(&game);
 #endif
+        game.tick++;
         game.scene->update(&game);  
         app_present( app, canvas.col, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0x000000 );
     }

@@ -18,6 +18,9 @@ world_1x1=tilemap_smbw1x1.ase
 gui=sprite_gui.ase
 
 mario=sprite_minimario.ase
+mariohi=sprite_minimariohi.ase
+mariofire=sprite_minimariohif.ase
+
 goomba=sprite_minigoomba.ase
 greentroopa=sprite_minigreentroopa.ase
 
@@ -31,6 +34,8 @@ mushroom1up=sprite_mushroom1up.ase
 
 fireball=sprite_fireball.ase
 fireballhit=sprite_fireballhit.ase
+
+score=sprite_score.ase
 
 poleflag=sprite_poleflag.ase
 castleflag=sprite_castleflag.ase

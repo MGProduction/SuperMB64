@@ -14,23 +14,38 @@
 #define tile_background_blockQ2 7
 #define tile_background_blockQ3 8
 
-#define tile_background_blockQX 9
+#define tile_background_blockH  9
 
-#define tile_background_pipeA   10
-#define tile_background_pipeZ   21
+#define tile_background_blockQX 10
 
-#define tile_background_coin    22
+#define tile_background_pipeA   11
+#define tile_background_pipeZ   22
+
+#define tile_background_coin    23
 
 #define tile_solid_start        tile_background_groundA 
 #define tile_solid_end          tile_background_pipeZ
 
 // ************************************************************
 
+#define bonus_coin          4
+#define bonus_magicmushroom 5
+#define bonus_mushroom1up   6
+#define bonus_star          7
+#define bonus_fireflower    8
+#define bonus_fragments     9
+
 #define forcedforward 1
 
-#define status_normal 0
-#define status_jump   1
-#define status_dead   2
+#define status_normal      0
+#define status_jump        1
+#define status_dead        2
+
+#define status_magic       8
+#define status_invincible 16
+#define status_fire       32
+
+#define status_mainmask 7
 
 #define ground_friction   0.2f
 #define air_friction      0.1f
@@ -46,17 +61,34 @@
 
 // ************************************************************
 
+int  tile_get(int mapid,int x,int y);
+int  tile_set(int mapid,int x,int y);
+
 void camera_update(_game*gm);
-int  hero_play(_game*gm,_act*hero);
+
 void hero_killed(_act*hero);
+void bonus_add(int x,int y,int tile);
+void fragments_add(int x,int y);
+
+int  hero_play(_game*gm,_act*hero);
 int  goomba_play(_game*gm,_act*hero);
+int  greentroopa_play(_game*gm,_act*hero);
+int  coin_play(_game*gm,_act*hero);
+int  fireflower_play(_game*gm,_act*hero);
+int  mushroom_play(_game*gm,_act*hero);
+int  star_play(_game*gm,_act*hero);
+int  score_play(_game*gm,_act*goomba);
+
 
 // ************************************************************
 
 _img      offscreen;
 _act     *hero;
-_anim     charanim[3],gui;
-int       anim_idle,anim_walk,anim_attack,anim_jump,anim_die;
+_anim     gui;
+_anim     charanim[12];
+_actplay  charplay[]={hero_play,goomba_play,goomba_play,coin_play,goomba_play,goomba_play};
+int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_die,anim_attack,anim_grow,anim_shrink,charanim_cnt;
+int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim;
 _tilemaps level;
 _fbox*    world;
 _fbox     worlds[8]; 
@@ -75,20 +107,38 @@ int ingame_enter(_game*gm)
 { 
  int x,y;
 
+ actor_reset();
+
  tilemap_load(&level,"world_1x1");
  img_load(&offscreen,"world_1x1.a");
 
  anim_load(&gui,"gui");
 
- anim_load(&charanim[0],"mario");
- anim_load(&charanim[1],"goomba");
- anim_load(&charanim[2],"greentroopa");
+ charanim_cnt=0;
+
+ mario_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mario");
+ anim_load(&charanim[charanim_cnt++],"goomba");
+ anim_load(&charanim[charanim_cnt++],"greentroopa");
+ anim_load(&charanim[charanim_cnt++],"coin");
+ anim_load(&charanim[charanim_cnt++],"magicmushroom");
+ anim_load(&charanim[charanim_cnt++],"mushroom1up");
+ anim_load(&charanim[charanim_cnt++],"star");
+ fireflower_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"fireflower");
+
+ brickpieces_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"brickfragments");
+
+ score_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"score");
+
+ mariohi_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mariohi");
+ mariofire_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mariofire");
 
  anim_idle=strhash("idle");
  anim_walk=strhash("walk");
  anim_attack=strhash("attack");
  anim_jump=strhash("jump");
  anim_die=strhash("die");
+ anim_grow=strhash("grow");
+ anim_shrink=strhash("shrink");
 
  lives=3;coins=0;score=0;secs=300*GAME_FRAMERATE;
  
@@ -132,6 +182,7 @@ int ingame_enter(_game*gm)
          case 3:
           {
            _act*tmp=actor_get();    
+           tmp->kind=tile;
            tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);
            tmp->animset=&charanim[tile-1];tmp->flags|=sprite_hflip;
            tmp->play=goomba_play;tmp->flags|=sprite_visible;
@@ -153,9 +204,8 @@ int ingame_enter(_game*gm)
 
 int ingame_leave(_game*gm,_scene*next)
 {
- anim_unload(&charanim[0]);
- anim_unload(&charanim[1]);
- anim_unload(&charanim[1]);
+ while(charanim_cnt--)
+  anim_unload(&charanim[charanim_cnt]);
 
  anim_unload(&gui);
  
@@ -166,6 +216,27 @@ int ingame_leave(_game*gm,_scene*next)
 void background_blit(_img*canvas,int bx,int by,int bw,int bh)
 {
  img_box(canvas,bx,by,bw,bh,0xfffc945c);
+}
+
+int tile_get(int mapid,int x,int y)
+{
+ word*map=&level.maps[level.tilemap[mapid].mappos];
+ if(isbetween(x,0,level.tilemap[mapid].mapw-1)&&isbetween(y,0,level.tilemap[mapid].maph-1))
+  return map[x+y*level.tilemap[mapid].mapw];
+ else
+  return 0;
+}
+
+int tile_set(int mapid,int x,int y,word ntile)
+{
+ word*map=&level.maps[level.tilemap[mapid].mappos];
+ if(isbetween(x,0,level.tilemap[mapid].mapw-1)&&isbetween(y,0,level.tilemap[mapid].maph-1))
+  {
+   map[x+y*level.tilemap[mapid].mapw]=ntile;
+   return 1;
+  }
+ else
+  return 0;
 }
 
 void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
@@ -232,8 +303,9 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
             blockhitT++;
             if((blockhitT/(GAME_FRAMERATE/15))>=sizeof(blockdisplacement))
              {
+              word ltile=map[x+y*tm->tilemap[t].mapw];
               blockhitX=blockhitY=-1;blockhitT=0;
-              if(map[x+y*tm->tilemap[t].mapw]==tile_background_blockQ1)
+              if((ltile==tile_background_blockQ1)||(ltile==tile_background_blockH))
                map[x+y*tm->tilemap[t].mapw]=tile_background_blockQX;
              }
            }
@@ -258,9 +330,10 @@ void gui_draw()
  img_blit(&canvas,x,y,&gui.atlas,xid*w,0,6,6,0);x+=4;
  gui_drawdigits(x,y,coins,2);
 
- y=1;x=(GAME_WIDTH-3*6)/2+1;
- gui_drawstring(x,y,"SCORE");
- y=7;x=(GAME_WIDTH-6*4)/2+2;
+ //y=1;x=(GAME_WIDTH-3*6)/2+1;
+ //gui_drawstring(x,y,"SCORE");
+ //y=7;
+ y=1;x=(GAME_WIDTH-6*4)/2+2;
  gui_drawdigits(x,y,score,6);
 
  y=1;x=GAME_WIDTH-6*2-2;
@@ -280,7 +353,7 @@ void canvas_update(_game*gm)
  
  qsort(&pactors[0],actors_count,sizeof(pactors[0]),actors_ysort);
  for(i=0;i<actors_count;i++)
-  act_draw(pactors[i]);
+  act_draw(gm,pactors[i]);
 
  gui_draw();
 
@@ -449,25 +522,178 @@ int act_ontheground(_act*c)
 
 // ************************************************************
 
+void fragments_add(int x,int y)
+{
+ _act*tmp=actor_get();    
+ int  id=1,tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh,tile=brickpieces_anim+1;
+ int  px=x*tw,py=(y-1)*th;
+ tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);  
+ tmp->play=goomba_play;
+ tmp->dpos.y=-6; 
+ tmp->animset=&charanim[tile-1];
+ tmp->kind=tile;tmp->flags|=sprite_visible;
+ act_setanim(tmp,anim_idle);   
+
+ tmp=actor_get();
+ tmp->flags|=sprite_hflip;
+ tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);  
+ tmp->play=goomba_play;
+ tmp->dpos.y=-6;
+ tmp->animset=&charanim[tile-1];
+ tmp->kind=tile;tmp->flags|=sprite_visible;
+ act_setanim(tmp,anim_idle);   
+}
+
+void bonus_add(int x,int y,int tile)
+{
+ if(tile)
+  {
+   _act*tmp=actor_get();    
+   int  id=1,tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh;
+   int  px=x*tw,py=(y-1)*th;
+   tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);   
+   if(tile==bonus_coin)
+    {
+     tmp->play=coin_play;
+     tmp->dpos.y=-6;
+    }
+   else
+   if(tile==bonus_magicmushroom)
+   {
+    if(hero->status&status_magic)
+     {
+      tile=fireflower_anim+1;
+      tmp->play=fireflower_play;
+     }
+    else
+     tmp->play=goomba_play;
+   }
+   else
+   if(tile==bonus_mushroom1up)
+    tmp->play=goomba_play;
+   else
+    if(tile==bonus_star)
+     {
+      tmp->play=goomba_play;
+      tmp->dpos.y=-6;
+     }
+   tmp->animset=&charanim[tile-1];
+   tmp->kind=tile;tmp->flags|=sprite_visible;
+   act_setanim(tmp,anim_idle);   
+  }
+}
+
+void score_add(float x,float y,int value)
+{
+ _act*tmp=actor_get();    
+ tmp->pos.x=x;tmp->pos.y=y;
+ tmp->animset=&charanim[score_anim];
+ tmp->play=score_play;tmp->flags|=sprite_visible;score+=value;
+ tmp->dpos.y=-6;
+ act_setanim(tmp,tmp->animset->anim[(value/100)-1].id);
+}
+
+int fireflower_play(_game*gm,_act*goomba)
+{
+ if(!fbox_ispointinborder(&goomba->pos,world,(float)(GAME_WIDTH*2),(float)16))
+  return 0;
+ if((fabs(goomba->pos.x-hero->pos.x)<10)&&(fabs(goomba->pos.y-hero->pos.y)<10))
+  if(act_intersect(goomba,hero))
+   {
+    if((hero->status&status_magic)==0)
+     {
+     hero->animset=&charanim[mariohi_anim];
+     hero->status|=status_magic;
+     hero->flags|=sprite_flashing;
+     act_setanim(hero,anim_grow);
+     }
+    else
+     {
+      hero->animset=&charanim[mariofire_anim];
+      hero->status|=status_fire;
+     }
+    return 0;
+   }
+ return 1;
+}
+
+int coin_play(_game*gm,_act*hero)
+{
+ float gravity;
+ if(hero->dpos.y<0)
+  gravity=gravityup;
+ else
+  gravity=gravitydown/2;
+ hero->dpos.y=float_min(hero->dpos.y+gravity,hero_maxfallspeed);
+ hero->pos.y+=hero->dpos.y;
+ if(hero->dpos.y>2)
+  {
+   score_add(hero->pos.x,hero->pos.y,200);
+   return 0;
+  }
+ else
+  return 1;
+}
+
+int score_play(_game*gm,_act*hero)
+{
+ hero->timer++;
+ hero->dpos.y=-0.5f;
+ hero->pos.y+=hero->dpos.y;
+ if(hero->timer>20)
+  return 0;
+ else
+  return 1;
+}
+
 int goomba_play(_game*gm,_act*goomba)
 {
  if(!fbox_ispointinborder(&goomba->pos,world,(float)(GAME_WIDTH*2),(float)16))
   return 0;
  if(goomba->animid==anim_die)
-  return 1;
+ {
+  goomba->timer++;
+  if(goomba->timer>20)
+   return 0;
+  else
+   return 1;
+ }
  if(!act_ontheground(goomba))
-   goomba->dpos.y=float_min(goomba->dpos.y+gravitydown,hero_maxfallspeed);
+  goomba->dpos.y=float_min(goomba->dpos.y+gravitydown,hero_maxfallspeed);
+ else
+  if(goomba->kind==bonus_star)
+   if(goomba->dpos.y==0)
+    goomba->dpos.y=-4;
  if(goomba->flags&sprite_hflip)
   goomba->dpos.x=-goomba_speed;
  else
   goomba->dpos.x=+goomba_speed;
+
+ if(goomba->kind==bonus_fragments)
+  ;
+ else
  if((fabs(goomba->pos.x-hero->pos.x)<10)&&(fabs(goomba->pos.y-hero->pos.y)<10))
   if(act_intersect(goomba,hero))
+   if(goomba->kind==bonus_star)
+    {
+     return 0;
+    }
+   else
+   if((goomba->kind==bonus_magicmushroom)||(goomba->kind==bonus_mushroom1up))
+    {
+     hero->animset=&charanim[mariohi_anim];
+     hero->status|=status_magic;
+     hero->flags|=sprite_flashing;
+     act_setanim(hero,anim_grow);     
+     return 0;
+    }
+   else
    if((hero->pos.y<goomba->pos.x+1)&&(hero->dpos.y>0)&&(hero->animid!=anim_die))
     {
-     act_setanim(goomba,anim_die);score+=100;
+     act_setanim(goomba,anim_die);
+     score_add(goomba->pos.x,goomba->pos.y,100);
      act_setanim(hero,anim_jump);
-     hero->status=status_jump;
+     hero->status|=status_jump;
      hero->dpos.y=-hero_topjumpspeed;
     }
    else
@@ -478,15 +704,19 @@ int goomba_play(_game*gm,_act*goomba)
  if(goomba->dpos.x||goomba->dpos.y)
   {
    _fpos delta={goomba->dpos.x,goomba->dpos.y};
+   if(goomba->kind==bonus_fragments)
+    ;
+   else
    if(handle_collisions(goomba,&delta))
     {
-     if(goomba->pos.x!=delta.x)
-      {
-      if(goomba->flags&sprite_hflip)
-       goomba->flags-=sprite_hflip;      
-      else
-       goomba->flags|=sprite_hflip;      
-      }
+     if(goomba->dpos.y==0)
+      if(goomba->pos.x!=delta.x)
+       {
+       if(goomba->flags&sprite_hflip)
+        goomba->flags-=sprite_hflip;      
+       else
+        goomba->flags|=sprite_hflip;      
+       }
      if(goomba->dpos.x!=delta.x)
       goomba->dpos.x=0;
      if(goomba->dpos.y!=delta.y)
@@ -494,7 +724,7 @@ int goomba_play(_game*gm,_act*goomba)
     }
    goomba->pos.x+=delta.x;
    goomba->pos.y+=delta.y;
-   if(goomba->status==status_normal)
+   if((goomba->status&status_mainmask)==status_normal)
     if(goomba->dpos.x)
      act_setanim(goomba,anim_walk);
   }
@@ -505,29 +735,61 @@ int goomba_play(_game*gm,_act*goomba)
 
 void hero_killed(_act*hero)
 {
- if(hero->status!=status_dead)
+ if((hero->status&status_dead)==0)
   {
-   act_setanim(hero,anim_die);
-   hero->status=status_dead;
-   hero->dpos.y-=hero_topjumpspeed+float_min(0.5f,abs(hero->dpos.x));
+   if(hero->status&status_invincible)
+    ;
+   else
+   if(hero->status&status_magic)
+    act_setanim(hero,anim_shrink);
+   else
+    {
+     act_setanim(hero,anim_die);
+     hero->status|=status_dead;
+     hero->dpos.y=-hero_topjumpspeed*1.25f;
+    }
   }
 }
 
 int hero_play(_game*gm,_act*hero)
 {
  int move=0;
+ if(hero->status&status_dead)
+  if(!fbox_ispointinborder(&hero->pos,world,(float)(GAME_WIDTH*2),(float)16))
+   return 0;
  if(gm->input.key_control)
   act_setanim(hero,anim_attack);
- if(hero->animid==anim_attack)
+ if(hero->animid==0)
+  if(hero->prevanimid==anim_grow)
+   {
+    if(hero->flags&sprite_flashing)
+     {
+      hero->flags-=sprite_flashing;
+      score_add(hero->pos.x,hero->pos.y-12,1000);
+     }
+   }
+  else
+  if(hero->prevanimid==anim_shrink)
+   {
+    if(hero->status&status_magic)
+     {
+      hero->animset=&charanim[mario_anim];
+      hero->status-=status_magic;
+      hero->status|=status_invincible;
+      hero->flags|=sprite_flashing;
+      hero->timer=0;
+     }
+   }
+ if((hero->animid==anim_attack)||(hero->animid==anim_grow)||(hero->animid==anim_shrink))
   ;
  else
  if(hero->animid==anim_die)
   {
-   float gravity;
+   float gravity=gravityup;
    if(hero->dpos.y<0)
     gravity=gravityup;
    else
-    gravity=gravitydown/2;
+    gravity=gravityuppow;
    hero->dpos.y=float_min(hero->dpos.y+gravity,hero_maxfallspeed);
    hero->pos.y+=hero->dpos.y;
    camera_update(gm);
@@ -576,15 +838,15 @@ int hero_play(_game*gm,_act*hero)
       hero->dpos.y=float_min(hero->dpos.y+gravity,hero_maxfallspeed);
      }
     else     
-      if(hero->status==status_jump)
-       hero->status=status_normal;
+      if((hero->status&status_mainmask)==status_jump)
+       hero->status^=status_jump;
 
    if(gm->input.key_up)
     {
-     if(hero->status==status_normal)
+     if((hero->status&status_mainmask)==status_normal)
       {
        act_setanim(hero,anim_jump);
-       hero->status=status_jump;
+       hero->status|=status_jump;
        hero->dpos.y-=hero_topjumpspeed+float_min(0.5f,abs(hero->dpos.x));
       }
     }
@@ -600,7 +862,23 @@ int hero_play(_game*gm,_act*hero)
        
        if(isbetween(colKIND,tile_background_wallA,tile_background_wallB)||(colKIND==tile_background_blockQ1))
         if(hero->dpos.y<0)
-         {blockhitX=colX;blockhitY=colY;blockhitT=0;}
+         {
+          if((hero->status&status_magic)&&isbetween(colKIND,tile_background_wallA,tile_background_wallB))
+           {
+            tile_set(0,colX,colY,0);
+            fragments_add(colX,colY);
+           }
+          else
+           {
+            word what=tile_get(1,colX,colY);            
+            blockhitX=colX;blockhitY=colY;blockhitT=0;          
+            if(what)
+             {
+              bonus_add(blockhitX,blockhitY,what);              
+              tile_set(1,colX,colY,0);
+             }
+           }
+         }
 
        if(hero->dpos.x!=delta.x)
         hero->dpos.x=0;
@@ -609,9 +887,12 @@ int hero_play(_game*gm,_act*hero)
       }
      hero->pos.x+=delta.x;
      hero->pos.y+=delta.y;
-     if(hero->status==status_normal)
+     if((hero->status&status_mainmask)==status_normal)
       if(hero->dpos.x!=0)
        act_setanim(hero,anim_walk);
+      else
+       if(hero->dpos.y==0)
+        act_setanim(hero,anim_idle); 
 
      if(hero->pos.x<world->x1)
       hero->pos.x=world->x1;
@@ -625,6 +906,15 @@ int hero_play(_game*gm,_act*hero)
 
    camera_update(gm);
   }
+ if(hero->status&status_invincible)
+  {
+   hero->timer++;
+   if(hero->timer>=GAME_FRAMERATE*3)
+    {
+     hero->status-=status_invincible;
+     hero->flags-=sprite_flashing;
+    }
+  }
  return 1;
 }
 
@@ -632,6 +922,9 @@ int hero_play(_game*gm,_act*hero)
 
 int ingame_update(_game*gm)
 {
+ if((hero->flags&sprite_used)==0)
+  gm->scene->status=scene_leaving;
+
  if(gm->scene->status==scene_playing)
   {
    int i,del=0;

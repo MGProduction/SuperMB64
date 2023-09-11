@@ -756,6 +756,8 @@ int goomba_play(_game*gm,_act*goomba)
   if(act_intersect(goomba,hero))
    if(goomba->kind==bonus_star)
     {
+     hero->flags|=sprite_colorsetA;
+     hero->timer=0;
      return 0;
     }
    else
@@ -777,6 +779,12 @@ int goomba_play(_game*gm,_act*goomba)
      hero->dpos.y=-hero_topjumpspeed;
     }
    else
+    if(hero->flags&sprite_colorsetA)
+     {
+      act_setanim(goomba,anim_die);
+      score_add(goomba->pos.x,goomba->pos.y,100);
+     }
+    else
     hero_killed(hero);
  if(goomba->animid==anim_die)
   ;
@@ -836,7 +844,7 @@ int hero_play(_game*gm,_act*hero)
  int move=0;
  //if(hero->status&status_dead)
  if(!fbox_ispointinborder(&hero->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
-  return 0;
+  return 0; 
  if(gm->input.key_control)
   act_setanim(hero,anim_attack);
  if(hero->animid==0)
@@ -994,6 +1002,13 @@ int hero_play(_game*gm,_act*hero)
      hero->status-=status_invincible;
      hero->flags-=sprite_flashing;
     }
+  }
+ else
+ if(hero->flags&sprite_colorsetA)
+  {
+   hero->timer++;
+   if(hero->timer>=GAME_FRAMERATE*7)
+    hero->flags-=sprite_colorsetA;
   }
  return 1;
 }

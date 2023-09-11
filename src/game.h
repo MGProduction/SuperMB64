@@ -136,6 +136,8 @@ int tilemap_load(_tilemaps*a,const char*name)
 #define sprite_visible   4
 #define sprite_activated 8
 #define sprite_flashing  16
+#define sprite_colorsetA 32
+#define sprite_colorsetB 32
 #define sprite_used      128
 
 #define act_flashing     16
@@ -206,6 +208,48 @@ int act_setanim(_act*a,int animid)
  return 0;
 }
 
+void img_blit_replace(_img*idst,int px,int py,_img*i,int x,int y,int w,int h,int flip,dword*repl,int irepl)
+{
+ int   xx,yy,ww=idst->w,hh=idst->h;
+ dword*canvas=idst->col;
+ for(yy=0;yy<h;yy++)
+  if(isbetween((py+yy),0,hh-1)&&isbetween((y+yy),0,i->h-1))
+  for(xx=0;xx<w;xx++)
+   if(isbetween((px+xx),0,ww-1)&&isbetween((x+xx),0,i->w-1))
+    {     
+     byte  alpha;
+     dword val;
+     if(flip&1)
+      val=i->col[x+(w-xx-1)+(y+yy)*i->w];
+     else
+      val=i->col[x+xx+(y+yy)*i->w];
+     alpha=(val&0xFF000000)>>24;
+     if(irepl)
+      {
+       int n;
+       for(n=0;n<irepl;n++)
+        if((val&0xFFFFFF)==repl[n*2])
+        {
+         val=(val&0xFF000000)|repl[n*2+1];
+         break;
+        }
+      }
+     if(alpha)
+      if(alpha==255)
+       canvas[(px+xx)+(py+yy)*ww]=val;
+      else
+       {
+        dword val2=canvas[(px+xx)+(py+yy)*ww];
+        byte  r=((val&0xFF)*alpha+(val2&0xFF)*(255-alpha))/255;
+        byte  g=((((val&0xFF00)>>8)*alpha+((val2&0xFF00)>>8)*(255-alpha))/255);
+        byte  b=((((val&0xFF0000)>>16)*alpha+((val2&0xFF0000)>>16)*(255-alpha))/255);
+        canvas[(px+xx)+(py+yy)*ww]=r|(g<<8)|(b<<16)|0xFF000000;        
+       }
+    }
+}
+
+dword setA[]={0xff0224,0x404040,0xbf021b,0x101010,0x0039f7,0xc0c0c0,0x002bba,0xa0a0a0};
+
 void act_draw(_game*gm,_act*a)
 {
  _fpos p;
@@ -220,7 +264,17 @@ void act_draw(_game*gm,_act*a)
     if((a->flags&sprite_flashing)&&((gm->tick%7)<2))
      ;
     else
-     img_blit(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags);
+     if((a->flags&sprite_colorsetA)&&((gm->tick%7)<2))
+     {
+      img_blit_replace(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags,setA,4);
+     }
+     else
+     if((a->flags&sprite_colorsetB)&&((gm->tick%7)<2))
+      {
+       img_blit_replace(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags,setA,2);
+      }
+     else
+      img_blit(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags);
    }
 
  if(a->animid)

@@ -6,8 +6,12 @@ _img    canvas;
 
 // ************************************************************
 
-void gui_drawdigits(int x,int y,int val,int digitcnt);
-void gui_drawstring(int x,int y,const char*sz);
+int     topscore;
+
+// ************************************************************
+
+int gui_drawdigits(int x,int y,int val,int digitcnt);
+int gui_drawstring(int x,int y,const char*sz);
 
 // ************************************************************
 
@@ -40,6 +44,7 @@ int aabb_ispointinborder(_fpos*p,_aabb*b,float bw,float bh)
 
 typedef struct{
  float x1,y1,x2,y2;
+ word  bkg;
 }_fbox;
 
 int fbox_ispointinborder(_fpos*p,_fbox*b,float bw,float bh)
@@ -156,7 +161,7 @@ byte    actors_count;
 
 void  actor_reset()
 {
- memset(actors,0,sizeof(actors));
+ memset(actors,0,sizeof(actors));actors_count=0;
 }
 
 _act  *actor_get()
@@ -270,4 +275,26 @@ int act_intersect(_act*a,_act*b)
 
 
 // ************************************************************
+_tilemaps level;
+_img      offscreen;
 
+_act     *hero;
+
+word      worldareascnt=0;
+_fbox*    worldarea;
+_fbox     worldareas[8]; 
+
+_anim     charanim[12];
+int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_die,anim_attack,anim_grow,anim_shrink;
+int       charanim_cnt;
+int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim;
+
+// ************************************************************
+int  level_load(int world,int lv,int flags);
+
+void camera_update(_game*gm);
+
+void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy);
+void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy);
+
+// ************************************************************

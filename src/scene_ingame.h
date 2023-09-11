@@ -59,7 +59,47 @@
 #define gravitydown       1.2f
 #define goomba_speed      0.5f
 
+#define level_map         0
+#define level_elements    1
+
 // ************************************************************
+
+#define MAXPATCH 1024
+
+byte patchmapid[MAXPATCH];
+word patchx[MAXPATCH],patchy[MAXPATCH];
+word patchtile[MAXPATCH];
+word ipatch;
+
+void patch_reset()
+{
+ ipatch=0;
+}
+
+void patch_add(int mapid,int x,int y,word tile)
+{
+ if(ipatch==MAXPATCH)
+  ;
+ else
+  {
+   patchmapid[ipatch]=mapid;
+   patchx[ipatch]=x;patchy[ipatch]=y;
+   patchtile[ipatch]=tile;
+   ipatch++;
+  }
+}
+
+int  patch_get(int mapid,int x,int y,word*tile)
+{
+ int i=ipatch;
+ while(i--)
+  if((patchmapid[i]==mapid)&&(patchx[i]==x)&&(patchy[i]==y))
+   {
+    *tile=patchtile[i];
+    return 1;
+   }
+ return 0;
+}
 
 int  tile_get(int mapid,int x,int y);
 int  tile_set(int mapid,int x,int y);
@@ -79,20 +119,10 @@ int  mushroom_play(_game*gm,_act*hero);
 int  star_play(_game*gm,_act*hero);
 int  score_play(_game*gm,_act*goomba);
 
-
-// ************************************************************
-
-_img      offscreen;
-_act     *hero;
 _anim     gui;
-_anim     charanim[12];
 _actplay  charplay[]={hero_play,goomba_play,goomba_play,coin_play,goomba_play,goomba_play};
-int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_die,anim_attack,anim_grow,anim_shrink,charanim_cnt;
-int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim;
-_tilemaps level;
-_fbox*    world;
-_fbox     worlds[8]; 
 short     lives,coins,score,secs;
+short     wrld,lv;
 
 byte      blockQ[]={tile_background_blockQ1,tile_background_blockQ2,tile_background_blockQ3,tile_background_blockQ2};
 short     blockhitX=-1,blockhitY=-1,blockhitT=0,colX,colY,colKIND;
@@ -103,14 +133,114 @@ int       ilog;*/
 
 // ************************************************************
 
-int ingame_enter(_game*gm)
-{ 
- int x,y;
+#define worldarea_start 10
+#define worldarea_end   11
+int level_load(int world,int lv,int flags)
+{
+ int  x,y,start,end; 
+ word mapw,maph,tw,th;
+ char tilemap[32];
 
  actor_reset();
+ patch_reset();
 
- tilemap_load(&level,"world_1x1");
- img_load(&offscreen,"world_1x1.a");
+ strcpy(tilemap,"world_1x1");
+ tilemap[6]='0'+world;tilemap[8]='0'+lv; 
+ if(!tilemap_load(&level,tilemap))
+  return 0;
+ strcat(tilemap,".a");
+ if(!img_load(&offscreen,tilemap))
+  return 0;
+ 
+ mapw=level.tilemap[level_elements].mapw;maph=level.tilemap[level_elements].maph;
+ tw=level.tilemap[level_elements].tilew;th=level.tilemap[level_elements].tilew;
+
+ worldareascnt=0; 
+ for(start=end=x=0;x<mapw;x++)
+  {
+   word tile=tile_get(level_elements,x,0);
+   if(tile==worldarea_start)
+    start=x;
+   else
+    if(tile==worldarea_end)
+    {
+     for(y=1;y<maph;y++)
+      if(tile_get(level_elements,x,y)==worldarea_end)
+       break;
+     worldarea=&worldareas[worldareascnt++];
+     worldarea->x1=start*tw;
+     worldarea->x2=(float)worldarea->x1+(x-start)*tw;
+     worldarea->y1=0;
+     worldarea->y2=(float)worldarea->y1+y*th+th;
+     worldarea->bkg=x+1;
+     end=x;
+    }
+  }
+ worldarea=&worldareas[0];
+
+ if(worldareascnt)
+  if(flags&(1|2))
+   {
+   int y,tw=level.tilemap[level_elements].tilew,th=level.tilemap[level_elements].tileh;
+   for(x=0;x<level.tilemap[level_elements].mapw;x++)
+    for(y=0;y<level.tilemap[level_elements].maph;y++)   
+     {
+      word     tile=tile_get(level_elements,x,y);
+      if(tile)
+       {
+        int px=x*tw;
+        int py=y*th;
+        switch(tile)
+         {
+          case 1:
+           if(flags&1)
+            {
+            hero=actor_get();    
+            hero->pos.x=(float)(px+tw/2);
+            hero->pos.y=(float)(py+th);
+            hero->animset=&charanim[tile-1];
+            hero->play=hero_play;hero->flags|=sprite_visible;
+            act_setanim(hero,anim_idle);
+            }
+          break;
+          case 2:
+          case 3:
+           if(flags&2)
+            {
+             _act*tmp=actor_get();    
+             tmp->kind=tile;
+             tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);
+             tmp->animset=&charanim[tile-1];tmp->flags|=sprite_hflip;
+             tmp->play=goomba_play;tmp->flags|=sprite_visible;
+             act_setanim(tmp,anim_walk);
+            }
+           break;
+         }
+       }
+     }   
+  }
+ return worldareascnt;
+}
+
+void level_start(_game*gm)
+{ 
+ level_load(wrld,lv,1|2);
+ if(hero)
+  camera_update(gm);
+ 
+ secs=300*GAME_FRAMERATE;
+
+ gm->scene->status=scene_entering;
+ gm->timer=0;gm->maxtimer=GAME_FRAMERATE;
+}
+
+// ************************************************************
+
+int ingame_enter(_game*gm)
+{ 
+
+ lives=3;coins=0;score=0;
+ wrld=1;lv=1;
 
  anim_load(&gui,"gui");
 
@@ -140,65 +270,8 @@ int ingame_enter(_game*gm)
  anim_grow=strhash("grow");
  anim_shrink=strhash("shrink");
 
- lives=3;coins=0;score=0;secs=300*GAME_FRAMERATE;
+ level_start(gm);
  
- world=&worlds[0];
- {
-  int      id=0;
-  word     *map=&level.maps[level.tilemap[id].mappos];
-  int      tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh;
-  for(x=0;x<level.tilemap[id].mapw;x++)
-   if(map[x]==0)
-    {
-     world->x1=0;world->x2=(float)world->x1+(x-1)*tw;
-     world->y1=0;world->y2=(float)world->y1+level.tilemap[id].rmaph;
-     break;
-    }
- }
-
- {
-  int      id=1;
-  word     *map=&level.maps[level.tilemap[id].mappos];
-  int      tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh;
-  for(x=0;x<level.tilemap[id].mapw;x++)
-   for(y=0;y<level.tilemap[id].maph;y++)   
-    {
-     word     tile=map[x+y*level.tilemap[id].mapw];
-     if(tile)
-      {
-       int px=x*tw;
-       int py=y*th;
-       switch(tile)
-        {
-         case 1:
-          hero=actor_get();    
-          hero->pos.x=(float)(px+tw/2);
-          hero->pos.y=(float)(py+th);
-          hero->animset=&charanim[tile-1];
-          hero->play=hero_play;hero->flags|=sprite_visible;
-          act_setanim(hero,anim_idle);
-         break;
-         case 2:
-         case 3:
-          {
-           _act*tmp=actor_get();    
-           tmp->kind=tile;
-           tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);
-           tmp->animset=&charanim[tile-1];tmp->flags|=sprite_hflip;
-           tmp->play=goomba_play;tmp->flags|=sprite_visible;
-           act_setanim(tmp,anim_walk);
-          }
-          break;
-        }
-      }
-    }
-  if(hero)
-   camera_update(gm);
- }
- 
- gm->scene->status=scene_entering;
- gm->timer=0;gm->maxtimer=GAME_FRAMERATE;
-
  return 1;
 }
 
@@ -222,7 +295,13 @@ int tile_get(int mapid,int x,int y)
 {
  word*map=&level.maps[level.tilemap[mapid].mappos];
  if(isbetween(x,0,level.tilemap[mapid].mapw-1)&&isbetween(y,0,level.tilemap[mapid].maph-1))
-  return map[x+y*level.tilemap[mapid].mapw];
+  {
+   word tile;
+   if(patch_get(mapid,x,y,&tile))
+    return tile;
+   else
+    return map[x+y*level.tilemap[mapid].mapw];
+  }
  else
   return 0;
 }
@@ -232,7 +311,9 @@ int tile_set(int mapid,int x,int y,word ntile)
  word*map=&level.maps[level.tilemap[mapid].mappos];
  if(isbetween(x,0,level.tilemap[mapid].mapw-1)&&isbetween(y,0,level.tilemap[mapid].maph-1))
   {
-   map[x+y*level.tilemap[mapid].mapw]=ntile;
+   if(map[x+y*level.tilemap[mapid].mapw]!=ntile)
+    patch_add(mapid,x,y,ntile);
+   //map[x+y*level.tilemap[mapid].mapw]=ntile;
    return 1;
   }
  else
@@ -241,17 +322,16 @@ int tile_set(int mapid,int x,int y,word ntile)
 
 void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
 {
- int      x,y,tx=0,ty,t=0,played=0;
- word    *map=&tm->maps[tm->tilemap[t].mappos];
- word     tw=tm->tilemap[t].tilew,th=tm->tilemap[t].tileh;
- for(y=0;y<tm->tilemap[t].maph;y++)
+ int      x,y,tx=0,ty,played=0;
+ word     tw=tm->tilemap[level_map].tilew,th=tm->tilemap[level_map].tileh;
+ for(y=0;y<tm->tilemap[level_map].maph;y++)
   if(by+y*th-cy+th<0)
     ;
    else
    if(by+y*th-cy>canvas->h)
     break;
    else
-    for(x=0;x<tm->tilemap[t].mapw;x++)
+    for(x=0;x<tm->tilemap[level_map].mapw;x++)
      if(bx+x*tw-cx+tw<0)
       ;
      else
@@ -259,7 +339,7 @@ void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_i
        break;
       else
        {
-        word     tile=map[224+y*tm->tilemap[t].mapw];
+        word tile=tile_get(level_map,worldarea->bkg,y);
         if(tile)
          {
           ty=th*tile;
@@ -271,17 +351,16 @@ void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_i
 
 void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
 {
- int      x,y,tx=0,ty,t=0,played=0;
- word    *map=&tm->maps[tm->tilemap[t].mappos];
- word     tw=tm->tilemap[t].tilew,th=tm->tilemap[t].tileh;
- for(y=0;y<tm->tilemap[t].maph;y++)
+ int  x,y,tx=0,ty,played=0;
+ word tw=tm->tilemap[level_map].tilew,th=tm->tilemap[level_map].tileh;
+ for(y=0;y<tm->tilemap[level_map].maph;y++)
   if(by+y*th-cy+th<0)
     ;
    else
    if(by+y*th-cy>canvas->h)
     break;
    else
-    for(x=0;x<tm->tilemap[t].mapw;x++)
+    for(x=0;x<tm->tilemap[level_map].mapw;x++)
      if(bx+x*tw-cx+tw<0)
       ;
      else
@@ -289,7 +368,7 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
        break;
       else
        {
-        word     tile=map[x+y*tm->tilemap[t].mapw];
+        word tile=tile_get(level_map,x,y);
         if(tile)
          {
           if(tile==tile_background_blockQ1)
@@ -303,10 +382,11 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
             blockhitT++;
             if((blockhitT/(GAME_FRAMERATE/15))>=sizeof(blockdisplacement))
              {
-              word ltile=map[x+y*tm->tilemap[t].mapw];
+              word ltile=tile_get(level_map,x,y);
               blockhitX=blockhitY=-1;blockhitT=0;
               if((ltile==tile_background_blockQ1)||(ltile==tile_background_blockH))
-               map[x+y*tm->tilemap[t].mapw]=tile_background_blockQX;
+               tile_set(level_map,x,y,tile_background_blockQX);
+               //map[x+y*tm->tilemap[t].mapw]=tile_background_blockQX;
              }
            }
           else
@@ -374,25 +454,25 @@ void camera_update(_game*gm)
  if((hero->pos.x-w)-cam.x<GAME_WIDTH*2/5)
   cam.x=(hero->pos.x-w)-GAME_WIDTH*2/5;
 
- if(cam.x<world->x1) 
-  cam.x=world->x1;
+ if(cam.x<worldarea->x1) 
+  cam.x=worldarea->x1;
  else
-  if(cam.x+GAME_WIDTH>world->x2)
-   cam.x=(float)(world->x2-GAME_WIDTH);
+  if(cam.x+GAME_WIDTH>worldarea->x2)
+   cam.x=(float)(worldarea->x2-GAME_WIDTH);
 
  if(hero->pos.y-cam.y>GAME_HEIGHT*3/5)
   cam.y=hero->pos.y-GAME_HEIGHT*3/5;
  if((hero->pos.y-h)-cam.y<GAME_HEIGHT*2/5)
   cam.y=(hero->pos.y-h)-GAME_HEIGHT*2/5;
 
- if(cam.y<world->y1) 
-  cam.y=world->y1;
+ if(cam.y<worldarea->y1) 
+  cam.y=worldarea->y1;
  else
-  if(cam.y+GAME_HEIGHT>world->y2)
-   cam.y=(float)(world->y2-GAME_HEIGHT);
+  if(cam.y+GAME_HEIGHT>worldarea->y2)
+   cam.y=(float)(worldarea->y2-GAME_HEIGHT);
 
  if(forcedforward)
-  world->x1=float_max(world->x1,cam.x-GAME_WIDTH);
+  worldarea->x1=float_max(worldarea->x1,cam.x-GAME_WIDTH);
 }
 
 // ************************************************************
@@ -464,8 +544,8 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
 
 int handle_aabbcollisioncore(_aabb*box,_fpos*delta)
 {
- int      id=0,txx,tyy,x,y,tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh,cnt=0,ay,by,ax,bx;
- word    *map=&level.maps[level.tilemap[id].mappos];
+ int txx,tyy,x,y,tw=level.tilemap[level_map].tilew,th=level.tilemap[level_map].tileh,cnt=0,ay,by,ax,bx;
+ //word    *map=&level.maps[level.tilemap[id].mappos];
  txx=f2int((box->x+box->w/2)/tw);
  tyy=f2int((box->y+box->h/2)/th);  
  if(delta->x>0) {ax=0;bx=2;}
@@ -477,11 +557,11 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta)
  if(delta->y<0) {ay=-2;by=0;}
  else           {ay=-1;by=1;}
  for(y=ay;y<=by;y++)
-  if(isbetween(tyy+y,0,level.tilemap[id].maph-1))
+  if(isbetween(tyy+y,0,level.tilemap[level_map].maph-1))
    for(x=ax;x<=bx;x++)
-    if(isbetween(txx+x,0,level.tilemap[id].mapw-1))
+    if(isbetween(txx+x,0,level.tilemap[level_map].mapw-1))
      {
-      word what=map[(txx+x)+(tyy+y)*level.tilemap[id].mapw];
+      word what=tile_get(level_map,(txx+x),(tyy+y));
       if(isbetween(what,tile_solid_start,tile_solid_end))
        {
         _aabb tile;
@@ -595,7 +675,7 @@ void score_add(float x,float y,int value)
 
 int fireflower_play(_game*gm,_act*goomba)
 {
- if(!fbox_ispointinborder(&goomba->pos,world,(float)(GAME_WIDTH*2),(float)16))
+ if(!fbox_ispointinborder(&goomba->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
   return 0;
  if((fabs(goomba->pos.x-hero->pos.x)<10)&&(fabs(goomba->pos.y-hero->pos.y)<10))
   if(act_intersect(goomba,hero))
@@ -648,7 +728,7 @@ int score_play(_game*gm,_act*hero)
 
 int goomba_play(_game*gm,_act*goomba)
 {
- if(!fbox_ispointinborder(&goomba->pos,world,(float)(GAME_WIDTH*2),(float)16))
+ if(!fbox_ispointinborder(&goomba->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
   return 0;
  if(goomba->animid==anim_die)
  {
@@ -754,9 +834,9 @@ void hero_killed(_act*hero)
 int hero_play(_game*gm,_act*hero)
 {
  int move=0;
- if(hero->status&status_dead)
-  if(!fbox_ispointinborder(&hero->pos,world,(float)(GAME_WIDTH*2),(float)16))
-   return 0;
+ //if(hero->status&status_dead)
+ if(!fbox_ispointinborder(&hero->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
+  return 0;
  if(gm->input.key_control)
   act_setanim(hero,anim_attack);
  if(hero->animid==0)
@@ -894,11 +974,11 @@ int hero_play(_game*gm,_act*hero)
        if(hero->dpos.y==0)
         act_setanim(hero,anim_idle); 
 
-     if(hero->pos.x<world->x1)
-      hero->pos.x=world->x1;
+     if(hero->pos.x<worldarea->x1)
+      hero->pos.x=worldarea->x1;
      else
-      if(hero->pos.x>world->x2)
-       hero->pos.x=world->x2;
+      if(hero->pos.x>worldarea->x2)
+       hero->pos.x=worldarea->x2;
      
     }
    else
@@ -966,7 +1046,15 @@ int ingame_update(_game*gm)
    efx_fade(&canvas,gm->timer,gm->maxtimer,-1);
    gm->timer++;
    if(gm->timer==gm->maxtimer)
-    splash_leave(gm,&ingame);
+    {
+     if(score>topscore)
+      topscore=score;
+     lives--;
+     if(lives>0)
+      level_start(gm);
+     else
+      splash_leave(gm,&home);
+    }
   }
 
  return 1;

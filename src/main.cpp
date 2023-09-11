@@ -145,7 +145,7 @@ void game_start(_game*game)
 {
  anim_load(&font,"font");
 #if defined(_DEBUG)
- game->scene=&ingame;
+ game->scene=&home;
 #else
  game->scene=&splash;
 #endif
@@ -159,7 +159,7 @@ void game_end(_game*game)
  game->scene->leave(game,NULL);
 }
 
-void gui_drawstring(int x,int y,const char*sz)
+int gui_drawstring(int x,int y,const char*sz)
 {
  int w=3,h=6;
  while(*sz)
@@ -182,17 +182,20 @@ void gui_drawstring(int x,int y,const char*sz)
       x+=4;
     }
   }
+ return x;
 }
 
-void gui_drawdigits(int x,int y,int val,int digitcnt)
+int gui_drawdigits(int x,int y,int val,int digitcnt)
 {
- int digit=28,w=3,h=6;
+ int digit=28,w=3,h=6,ox;
+ ox=x+4*digitcnt;
  x+=4*(digitcnt-1);
  while(digitcnt--)
   {
    img_blit(&canvas,x,y,&font.atlas,(digit+(val%10))*w,0,w,h,0);
    val/=10;x-=4;
   }
+ return ox;
 }
 
 // ************************************************************

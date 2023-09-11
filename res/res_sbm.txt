@@ -9,6 +9,7 @@ font=sprite_font.ase
 splash=../SHR/mglogo.png
 
 // home
+logo=supermb64_logo.png
 
 // ingame
 

@@ -346,7 +346,7 @@ _fbox     worldareas[8];
 _anim     charanim[16];
 int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_die,anim_backdie,anim_attack,anim_grow,anim_shrink,anim_fire,anim_climb;
 int       charanim_cnt;
-int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim,fireball_anim;
+int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim,fireball_anim,fireballexplosion_anim;
 
 // ************************************************************
 int  level_load(int world,int lv,int flags);

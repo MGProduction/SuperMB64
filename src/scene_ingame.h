@@ -117,6 +117,7 @@ int  coin_play(_game*gm,_act*hero);
 int  score_play(_game*gm,_act*goomba);
 void bonus_add(int x,int y,int tile);
 void fragments_add(int x,int y);
+void explosion_add(_act*goomba);
 
 int  fireflower_play(_game*gm,_act*hero);
 
@@ -266,6 +267,7 @@ int ingame_enter(_game*gm)
 
  brickpieces_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"brickfragments");
  fireball_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"fireball"); 
+ fireballexplosion_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"fireballhit"); 
 
  score_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"score");
 
@@ -624,6 +626,27 @@ int act_ontheground(_act*c)
 
 // ************************************************************
 
+int wait_play(_game*gm,_act*goomba)
+{
+ if(!fbox_ispointinborder(&goomba->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
+  return 0;
+ if(goomba->animid==0)
+  return 0;
+ else
+  return 1;
+}
+
+void explosion_add(_act*goomba)
+{
+ _act*tmp=actor_get();    
+ int  tile=fireballexplosion_anim+1;
+ tmp->pos.x=goomba->pos.x;tmp->pos.y=goomba->pos.y;
+ tmp->play=wait_play;
+ tmp->animset=&charanim[tile-1];
+ tmp->kind=tile;tmp->flags|=sprite_visible;
+ act_setanim(tmp,anim_idle);   
+}
+
 void fragments_add(int x,int y)
 {
  _act*tmp=actor_get();    
@@ -763,6 +786,7 @@ int enemy_collision(_game*gm,_act*fire)
     if(act_intersect(fire,pactors[i]))
     {
      goomba_backdie(pactors[i]);
+     explosion_add(pactors[i]);
      fnd++;
     }
  return fnd;
@@ -859,7 +883,10 @@ int goomba_play(_game*gm,_act*goomba)
     {     
      if(goomba->dpos.x!=delta.x)
       if(goomba->kind==bonus_fireball)
-       return 0;
+       {
+        explosion_add(goomba);
+        return 0;
+       }
       else
       if(goomba->dpos.y==0)
        {

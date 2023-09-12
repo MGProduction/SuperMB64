@@ -20,11 +20,16 @@ typedef struct{
  dword*  col;
 }_img;
 
-void img_new(_img*i,int w,int h);
-int  img_load(_img*img,const char*name);
-void img_box(_img*idst,int x,int y,int w,int h,dword col);
-void img_blit(_img*idst,int px,int py,_img*i,int x,int y,int w,int h,int flip);
-void img_delete(_img*i);
+void  img_new(_img*i,int w,int h);
+void  img_delete(_img*i);
+
+int   img_load(_img*img,const char*name);
+
+dword img_get(_img*i,int x,int y);
+void  img_set(_img*i,int x,int y,dword col);
+
+void  img_box(_img*idst,int x,int y,int w,int h,dword col);
+void  img_blit(_img*idst,int px,int py,_img*i,int x,int y,int w,int h,int flip);
 
 void efx_fade(_img*idst,int pos,int top,int efx);
 
@@ -73,6 +78,33 @@ void img_delete(_img*i)
  if(i->attr&1)
   free(i->col); 
  i->col=NULL;i->w=i->h=0;
+}
+
+dword img_get(_img*i,int x,int y)
+{
+ if((x>=0)&&(x<i->w)&&(y>=0)&&(y<i->h))
+  return i->col[x+y*i->w];
+ else
+  return 0;
+}
+
+void img_set(_img*i,int x,int y,dword col)
+{
+ if((x>=0)&&(x<i->w)&&(y>=0)&&(y<i->h))
+  {
+   byte alpha=(col&0xFF000000)>>24;
+   if(alpha)
+    if(alpha==255)
+     i->col[x+y*i->w]=col;
+    else
+     {
+      dword val2=i->col[x+y*i->w];
+      byte  r=((col&0xFF)*alpha+(val2&0xFF)*(255-alpha))/255;
+      byte  g=((((col&0xFF00)>>8)*alpha+((val2&0xFF00)>>8)*(255-alpha))/255);
+      byte  b=((((col&0xFF0000)>>16)*alpha+((val2&0xFF0000)>>16)*(255-alpha))/255);
+      i->col[x+y*i->w]=r|(g<<8)|(b<<16)|0xFF000000;        
+     }
+  }
 }
 
 void img_box(_img*idst,int x,int y,int w,int h,dword col)

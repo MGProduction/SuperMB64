@@ -19,6 +19,8 @@ int gui_drawstring(int x,int y,const char*sz);
 #define float_max(x,y) ((x>y)?x:y)
 #define f2int(a) ((int)floor(a))
 
+#define bitclear(what,mask) if(what&mask) what-=mask;
+
 // ************************************************************
 
 typedef struct{
@@ -44,6 +46,7 @@ int aabb_ispointinborder(_fpos*p,_aabb*b,float bw,float bh)
 
 typedef struct{
  float x1,y1,x2,y2;
+ word  tx1,tx2,ty1,ty2;
  word  bkg;
 }_fbox;
 
@@ -136,8 +139,8 @@ int tilemap_load(_tilemaps*a,const char*name)
 #define sprite_visible   4
 #define sprite_activated 8
 #define sprite_flashing  16
-#define sprite_colorsetA 32
-#define sprite_colorsetB 32
+#define sprite_outlined  32
+#define sprite_drawn     64
 #define sprite_used      128
 
 #define act_flashing     16
@@ -208,7 +211,8 @@ int act_setanim(_act*a,int animid)
  return 0;
 }
 
-void img_blit_replace(_img*idst,int px,int py,_img*i,int x,int y,int w,int h,int flip,dword*repl,int irepl)
+#define col_yellow 0xFF00FFFF
+void img_blit_outline(_img*idst,int px,int py,_img*i,int x,int y,int w,int h,int flip,dword outline)
 {
  int   xx,yy,ww=idst->w,hh=idst->h;
  dword*canvas=idst->col;
@@ -224,27 +228,29 @@ void img_blit_replace(_img*idst,int px,int py,_img*i,int x,int y,int w,int h,int
      else
       val=i->col[x+xx+(y+yy)*i->w];
      alpha=(val&0xFF000000)>>24;
-     if(irepl)
+     if(alpha==255)
       {
-       int n;
-       for(n=0;n<irepl;n++)
-        if((val&0xFFFFFF)==repl[n*2])
-        {
-         val=(val&0xFF000000)|repl[n*2+1];
-         break;
-        }
-      }
-     if(alpha)
-      if(alpha==255)
+       int xxx=xx,next=1,prev=-1;
        canvas[(px+xx)+(py+yy)*ww]=val;
-      else
-       {
-        dword val2=canvas[(px+xx)+(py+yy)*ww];
-        byte  r=((val&0xFF)*alpha+(val2&0xFF)*(255-alpha))/255;
-        byte  g=((((val&0xFF00)>>8)*alpha+((val2&0xFF00)>>8)*(255-alpha))/255);
-        byte  b=((((val&0xFF0000)>>16)*alpha+((val2&0xFF0000)>>16)*(255-alpha))/255);
-        canvas[(px+xx)+(py+yy)*ww]=r|(g<<8)|(b<<16)|0xFF000000;        
-       }
+       if(flip&1) 
+        {xxx=(w-xx-1);next=-1;prev=1;}
+       if(img_get(i,xxx+x+prev,yy+y)==0)
+        img_set(idst,px+xx-1,py+yy,outline);
+       if(img_get(i,xxx+x+next,yy+y)==0)
+        img_set(idst,px+xx+1,py+yy,outline);
+       if(img_get(i,xxx+x,yy+y-1)==0)
+        img_set(idst,px+xx,py+yy-1,outline);
+       if(img_get(i,xxx+x,yy+y+1)==0)
+        img_set(idst,px+xx,py+yy+1,outline);
+      }
+     else
+      {
+       dword val2=canvas[(px+xx)+(py+yy)*ww];
+       byte  r=((val&0xFF)*alpha+(val2&0xFF)*(255-alpha))/255;
+       byte  g=((((val&0xFF00)>>8)*alpha+((val2&0xFF00)>>8)*(255-alpha))/255);
+       byte  b=((((val&0xFF0000)>>16)*alpha+((val2&0xFF0000)>>16)*(255-alpha))/255);
+       canvas[(px+xx)+(py+yy)*ww]=r|(g<<8)|(b<<16)|0xFF000000;        
+      }
     }
 }
 
@@ -255,26 +261,25 @@ void act_draw(_game*gm,_act*a)
  _fpos p;
  p.x=a->pos.x-floor(cam.x);p.y=a->pos.y-floor(cam.y);
  if((p.x-8>GAME_WIDTH)||(p.x+8<0))
-  ;
+  {
+   if(a->flags&sprite_drawn)
+    a->flags-=sprite_drawn;
+  }
  else
   if(a->flags&sprite_visible)
    {
     _framedesc*fr=getframe(a);
     float      fw=fr->w,fh=fr->h;
+    a->flags|=sprite_drawn;
     if((a->flags&sprite_flashing)&&((gm->tick%7)<2))
      ;
     else
-     if((a->flags&sprite_colorsetA)&&((gm->tick%7)<2))
      {
-      img_blit_replace(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags,setA,4);
-     }
-     else
-     if((a->flags&sprite_colorsetB)&&((gm->tick%7)<2))
-      {
-       img_blit_replace(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags,setA,2);
-      }
-     else
       img_blit(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags);
+      if(a->flags&sprite_outlined)
+       if((gm->tick%7)<2)
+        img_blit_outline(&canvas,f2int(p.x-fw/2),f2int(p.y-fh),&a->animset->atlas,fr->x,fr->y,fr->w,fr->h,a->flags,col_yellow);
+     }
    }
 
  if(a->animid)
@@ -338,10 +343,10 @@ word      worldareascnt=0;
 _fbox*    worldarea;
 _fbox     worldareas[8]; 
 
-_anim     charanim[12];
-int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_die,anim_attack,anim_grow,anim_shrink;
+_anim     charanim[16];
+int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_die,anim_backdie,anim_attack,anim_grow,anim_shrink,anim_fire,anim_climb;
 int       charanim_cnt;
-int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim;
+int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim,fireball_anim;
 
 // ************************************************************
 int  level_load(int world,int lv,int flags);

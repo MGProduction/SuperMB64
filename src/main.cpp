@@ -162,6 +162,35 @@ void game_end(_game*game)
 int gui_drawstring(int x,int y,const char*sz)
 {
  int w=3,h=6;
+ if(x==-1)
+ {
+  int w=0,i=0;
+  while(sz[i])
+   {
+    char ch=sz[i++];
+    int  v=0;
+    if(ch==' ')
+     w+=2;
+    else
+     {
+      if(isbetween(ch,'A','Z'))
+       v=ch-'A';
+      else
+       if(isbetween(ch,'0','9'))
+       v=28+(ch-'0');
+      if(ch=='I')
+       w+=2;
+      else
+       w+=4;
+     }
+   }
+  x=(GAME_WIDTH-w)/2;
+ }
+ if(y==-1)
+  {
+   int h=6;
+   y=(GAME_HEIGHT-h)/2;
+  }
  while(*sz)
   {
    char ch=*sz++;

@@ -15,6 +15,7 @@ logo=supermb64_logo.png
 
 // level
 world_1x1=tilemap_smbw1x1.ase
+world_1x2=tilemap_smbw1x2.ase
 
 gui=sprite_gui.ase
 

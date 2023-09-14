@@ -1,3 +1,10 @@
+//
+// Copyright (c) 2023, Marco Giorgini [ @marcogiorgini ]
+// Distributed under the MIT License
+//
+// (very) basic img handling
+//
+
 #ifndef mg_img_h
 #define mg_img_h
 

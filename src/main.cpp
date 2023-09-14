@@ -3,11 +3,10 @@
 // SuperMB64
 // 
 // [Yet Another Super Mario Bros clone]
-// with 64x64 (or 96x64) pixel resolution
+// with 64x64 (or 64x64 or 96x64) pixel resolution
 // done for educational purpouses 
 //
-// Marco Giorgini 
-// @marcogiorgini
+// Marco Giorgini [ @marcogiorgini ]
 //
 // ****************************************************************************
 //
@@ -85,10 +84,16 @@
 #if defined(_DEBUG)
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
+#define _GIF_SUPPORT
 #endif
 
 #define QOI_IMPLEMENTATION
 #include "libs/qoi.h"
+
+#if defined(_GIF_SUPPORT)
+#define MSF_GIF_IMPL
+#include "libs/msf_gif.h"
+#endif
 
 // ************************************************************
 // INCLUDES [AUDIO DECODING]
@@ -246,11 +251,6 @@ int game_getinput(_game*gm)
           if( event->data.key == APP_KEY_RETURN ) gm->input.key_enter = true;
           if( event->data.key == APP_KEY_SPACE ) gm->input.key_space = true;
           if( event->data.key == APP_KEY_CONTROL ) gm->input.key_control = true;
-#if defined(_DEBUG)
-          if( event->data.key == APP_KEY_F10 ) {
-           stbi_write_png("bin/screenshot.png",canvas.w,canvas.h,4,canvas.col,0);
-          }
-#endif
           if( event->data.key == APP_KEY_F11 ) {
               gm->fullscreen = !gm->fullscreen;
               app_screenmode( gm->app, gm->fullscreen ? APP_SCREENMODE_FULLSCREEN : APP_SCREENMODE_WINDOW );
@@ -263,6 +263,17 @@ int game_getinput(_game*gm)
           if( event->data.key == APP_KEY_RETURN ) gm->input.key_enter = false;
           if( event->data.key == APP_KEY_SPACE ) gm->input.key_space = false;
           if( event->data.key == APP_KEY_CONTROL ) gm->input.key_control = false;
+#if defined(_GIF_SUPPORT)
+          if( event->data.key == APP_KEY_F10 ) {
+           stbi_write_png("bin/screenshot.png",canvas.w,canvas.h,4,canvas.col,0);
+          }
+          if( event->data.key == APP_KEY_F5 ) {
+           gif_start();
+          }
+          if( event->data.key == APP_KEY_F6 ) {
+           gif_stop("bin/video.png");
+          }
+#endif
       }
   }
  return 1;
@@ -347,7 +358,12 @@ int app_proc( app_t* app, void* user_data )
         audio_render(&game);
 #endif
         game.tick++;
-        game.scene->update(&game);  
+        game.scene->update(&game); 
+
+#if defined(_GIF_SUPPORT)
+        gif_addframe((byte*)canvas.col);
+#endif
+
         app_present( app, canvas.col, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0x000000 );
     }
 

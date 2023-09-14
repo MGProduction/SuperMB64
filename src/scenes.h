@@ -6,7 +6,8 @@ enum scene_status{
  scene_undef,
  scene_entering,
  scene_playing,
- scene_leaving
+ scene_leaving,
+ scene_levelcompleted
 };
 
 typedef struct __scene{

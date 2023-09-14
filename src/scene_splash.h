@@ -1,3 +1,10 @@
+//
+// Copyright (c) 2023, Marco Giorgini [ @marcogiorgini ]
+// Distributed under the MIT License
+//
+// splash screen code for SuperMB64
+//
+
 // ************************************************************
 // SPLASH SCREEN CODE
 // ************************************************************

@@ -1,3 +1,10 @@
+//
+// Copyright (c) 2023, Marco Giorgini [ @marcogiorgini ]
+// Distributed under the MIT License
+//
+// some struct and base code for SuperMB64
+//
+
 // ************************************************************
 // GAME GENERIC CODE
 // ************************************************************
@@ -149,12 +156,22 @@ typedef struct __act _act;
 typedef int (*_actplay)(_game*gm,_act*hero);
 
 typedef struct __act{
- _fpos    pos;
- _fpos    dpos;
- _anim*   animset;
+ _fpos    pos;                   // world position
+ _fpos    dpos;                  // movement delta
+ float    zorder;                // drawn order (<0 before blocks >=0 after blocks)
+ float    defspeed;
+ 
+ _anim*   animset;               // active animset pointer
+ dword    animid,prevanimid;     // active and last animid
+
  byte     flags,status,kind;
- dword    animid,prevanimid;
- word     frame_cur,frame_from,frame_to,frame_speed,frame_time,frame_loop;
+ 
+ word     frame_cur,
+          frame_from,frame_to,
+          frame_speed,
+          frame_time,
+          frame_loop;
+
  word     timer; 
  _actplay play;
 }_act;
@@ -176,7 +193,6 @@ _act  *actor_get()
   if((actors[i].flags&sprite_used)==0)
    {
      memset(&actors[i],0,sizeof(actors[i]));
-     actors[i].animid=0;
      actors[i].flags|=sprite_used;
      pactors[actors_count++]=&actors[i];
      return &actors[i];
@@ -254,8 +270,6 @@ void img_blit_outline(_img*idst,int px,int py,_img*i,int x,int y,int w,int h,int
     }
 }
 
-dword setA[]={0xff0224,0x404040,0xbf021b,0x101010,0x0039f7,0xc0c0c0,0x002bba,0xa0a0a0};
-
 void act_draw(_game*gm,_act*a)
 {
  _fpos p;
@@ -316,6 +330,29 @@ int actors_ysort(const void*a,const void*b)
   return ((*A)-actors)-((*B)-actors);
 }
 
+int actors_zxsort(const void*a,const void*b)
+{
+ _act**A=(_act**)a;
+ _act**B=(_act**)b;
+ float  dif=(*A)->zorder-(*B)->zorder; 
+ if(dif)
+  if(dif>0)
+   return 1;
+  else
+   return -1;
+ else
+  {
+   dif=(*A)->pos.x-(*B)->pos.x; 
+   if(dif)
+    if(dif>0)
+     return 1;
+    else
+     return -1;
+   else
+    return ((*A)-actors)-((*B)-actors);
+  }
+}
+
 void act_getaabb(_act*c,_aabb*box)
 {
  _framedesc*fr=getframe(c);
@@ -344,16 +381,46 @@ _fbox*    worldarea;
 _fbox     worldareas[8]; 
 
 _anim     charanim[16];
-int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_die,anim_backdie,anim_attack,anim_grow,anim_shrink,anim_fire,anim_climb;
+int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_dress,anim_die,anim_backdie,anim_attack,anim_grow,anim_shrink,anim_fire,anim_climb,anim_shell;
 int       charanim_cnt;
 int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim,fireball_anim,fireballexplosion_anim;
 
 // ************************************************************
-int  level_load(int world,int lv,int flags);
+int level_load(_game*gm,int world,int lv,int flags);
 
 void camera_update(_game*gm);
 
 void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy);
 void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy);
+
+// ************************************************************
+
+#if defined(_GIF_SUPPORT)
+MsfGifState gifState;
+
+void gif_start()
+{
+ memset(&gifState,0,sizeof(gifState));
+ msf_gif_begin(&gifState, GAME_WIDTH,GAME_HEIGHT);
+}
+
+void gif_addframe(byte*pixelbuffer)
+{
+ if(gifState.width)
+  msf_gif_frame(&gifState,pixelbuffer, 3, 16, GAME_WIDTH * 4); //frame 1
+}
+
+void gif_stop(const char*name)
+{
+ MsfGifResult result = msf_gif_end(&gifState);
+ if (result.data)
+  {
+   FILE * fp = fopen(name, "wb");
+   fwrite(result.data, result.dataSize, 1, fp);
+   fclose(fp);
+  }
+ msf_gif_free(result);
+}
+#endif
 
 // ************************************************************

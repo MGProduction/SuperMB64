@@ -1,3 +1,10 @@
+//
+// Copyright (c) 2023, Marco Giorgini [ @marcogiorgini ]
+// Distributed under the MIT License
+//
+// minimal memory/string library
+//
+
 #ifndef mg_minlib_h
 #define mg_minlib_h
 

@@ -1,3 +1,10 @@
+//
+// Copyright (c) 2023, Marco Giorgini [ @marcogiorgini ]
+// Distributed under the MIT License
+//
+// ingame code for SuperMB64
+//
+
 // ************************************************************
 // INGAME CODE
 // ************************************************************
@@ -8,25 +15,35 @@
 #define tile_background_wallA   3
 #define tile_background_wallB   4
 
-#define tile_background_block   5
+#define tile_background_blockA  5
+#define tile_background_blockB  6
 
-#define tile_background_blockQ1 6
-#define tile_background_blockQ2 7
-#define tile_background_blockQ3 8
+#define tile_background_blockQ1 7
+#define tile_background_blockQ2 8
+#define tile_background_blockQ3 9
 
-#define tile_background_blockQH 9
+#define tile_background_blockC1 24
+#define tile_background_blockC2 25
+#define tile_background_blockC3 26
 
-#define tile_background_blockQX 10
+#define tile_background_blockQH 10
 
-#define tile_background_pipeA   11
-#define tile_background_pipeZ   22
+#define tile_background_blockQX 11
 
-#define tile_background_coin    23
+#define tile_background_pipeA   12
+#define tile_background_pipeZ   23
+
+#define tile_background_coin    24
+
+#define tile_background_pole    27
 
 #define tile_solid_start        tile_background_groundA 
 #define tile_solid_end          tile_background_pipeZ
 
 // ************************************************************
+
+#define enemy_goomba        2
+#define enemy_greentroopa   3
 
 #define bonus_coin          4
 #define bonus_magicmushroom 5
@@ -61,8 +78,8 @@
 #define gravitydown       1.2f
 #define goomba_speed      0.5f
 
-#define level_map         0
-#define level_elements    1
+#define layer_map         0
+#define layer_elements    1
 
 // ************************************************************
 
@@ -113,6 +130,7 @@ void hero_grow(_act*hero);
 int  hero_play(_game*gm,_act*hero);
 void hero_fire(_act*hero);
 
+void coin_take(int addscore);
 int  coin_play(_game*gm,_act*hero);
 int  score_play(_game*gm,_act*goomba);
 void bonus_add(int x,int y,int tile);
@@ -121,33 +139,118 @@ void explosion_add(_act*goomba);
 
 int  fireflower_play(_game*gm,_act*hero);
 
-int  goomba_play(_game*gm,_act*goomba);
+int  movingelements_play(_game*gm,_act*goomba);
 void goomba_backdie(_act*goomba);
 
 char      guimsg[32];
 _anim     gui;
-_actplay  charplay[]={hero_play,goomba_play,goomba_play,coin_play,goomba_play,goomba_play};
-short     lives,coins,score,secs;
+_actplay  charplay[]={hero_play,movingelements_play,movingelements_play,coin_play,movingelements_play,movingelements_play};
+short     lives,coins,score,secs,rsecs;
 short     wrld,lv;
+short     changearea,changelevel,currentarea;
 
 byte      blockQ[]={tile_background_blockQ1,tile_background_blockQ2,tile_background_blockQ3,tile_background_blockQ2};
-short     blockhitX=-1,blockhitY=-1,blockhitT=0,colX,colY,colKIND;
+byte      blockC[]={tile_background_blockC1,tile_background_blockC2,tile_background_blockC3,tile_background_blockC2};
+short     blockhitTD,blockhitX=-1,blockhitY=-1,blockhitT=0,colX,colY,colKIND;
 byte      blockdisplacement[]={1,2,3,3,2,1,0};
 
 // ************************************************************
 
-#define worldarea_start 10
-#define worldarea_end   11
-int level_load(int world,int lv,int flags)
+#define worldarea_start   8
+#define worldarea_end     9
+
+#define worldarea_enter  10
+#define worldarea_exit   14
+
+int level_loadarea(_game*gm,short newarea,int flags)
 {
- int  x,y,start,end; 
- word mapw,maph,tw,th;
- char tilemap[32];
+ _act bhero; 
+ 
+ if(hero)
+  memcpy(&bhero,hero,sizeof(bhero));
+ else
+  memset(&bhero,0,sizeof(bhero));
 
  *guimsg=0;
  actor_reset(); 
  patch_reset();
 
+ if(isbetween(newarea,0,worldareascnt-1))
+  {
+   word herokey=1;
+   currentarea=newarea;changelevel=changearea=-1;
+   worldarea=&worldareas[currentarea];
+   if(flags&4)
+    herokey=worldarea_exit+currentarea;
+   if(flags&(1|2))
+    {
+     int x,y,tw=level.tilemap[layer_elements].tilew,th=level.tilemap[layer_elements].tileh;
+     for(x=worldarea->tx1;x<worldarea->tx2;x++)
+      for(y=worldarea->ty1;y<worldarea->ty2;y++)   
+       {
+        word     tile=tile_get(layer_elements,x,y);
+        if(tile)
+         {
+          int px=x*tw;
+          int py=y*th;
+          if(tile==herokey)
+           {
+            if(flags&1)
+             {
+              hero=actor_get();                  
+              if(bhero.play)
+               memcpy(hero,&bhero,sizeof(bhero));
+              else
+               {
+                hero->kind=(byte)tile;             
+                hero->animset=&charanim[tile-1];
+                hero->play=hero_play;hero->flags|=sprite_visible;
+               }
+              act_setanim(hero,anim_idle);
+              hero->dpos.x=hero->dpos.y=0;
+              hero->pos.x=(float)(px+tw/2);
+              hero->pos.y=(float)(py+th);
+             }
+           }
+          else
+           switch(tile)
+            {
+             case enemy_goomba:
+             case enemy_greentroopa:
+              if(flags&2)
+               {
+                _act*tmp=actor_get();                    
+                tmp->kind=(byte)tile;
+                tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);
+                tmp->animset=&charanim[tile-1];tmp->flags|=sprite_hflip;
+                tmp->defspeed=goomba_speed;
+                tmp->play=movingelements_play;tmp->flags|=sprite_visible;
+                act_setanim(tmp,anim_walk);
+               }
+              break;
+            }
+         }
+       }   
+    }
+   if(hero)
+    camera_update(gm);
+   
+   secs=300*GAME_FRAMERATE;
+   rsecs=secs/GAME_FRAMERATE;
+
+   gm->scene->status=scene_entering;
+   gm->timer=0;gm->maxtimer=GAME_FRAMERATE;
+   return 1;
+  }
+ return 0;
+}
+
+int level_load(_game*gm,int world,int lv,int flags)
+{
+ int  x,y,start,end; 
+ word mapw,maph,tw,th;
+ char tilemap[32];
+ 
  strcpy(tilemap,"world_1x1");
  tilemap[6]='0'+world;tilemap[8]='0'+lv; 
  if(!tilemap_load(&level,tilemap))
@@ -155,21 +258,23 @@ int level_load(int world,int lv,int flags)
  strcat(tilemap,".a");
  if(!img_load(&offscreen,tilemap))
   return 0;
+
+ hero=NULL;
  
- mapw=level.tilemap[level_elements].mapw;maph=level.tilemap[level_elements].maph;
- tw=level.tilemap[level_elements].tilew;th=level.tilemap[level_elements].tilew;
+ mapw=level.tilemap[layer_elements].mapw;maph=level.tilemap[layer_elements].maph;
+ tw=level.tilemap[layer_elements].tilew;th=level.tilemap[layer_elements].tilew;
 
  worldareascnt=0; 
  for(start=end=x=0;x<mapw;x++)
   {
-   word tile=tile_get(level_elements,x,0);
+   word tile=tile_get(layer_elements,x,0);
    if(tile==worldarea_start)
     start=x;
    else
     if(tile==worldarea_end)
     {
      for(y=1;y<maph;y++)
-      if(tile_get(level_elements,x,y)==worldarea_end)
+      if(tile_get(layer_elements,x,y)==worldarea_end)
        break;
      worldarea=&worldareas[worldareascnt++];
      
@@ -186,62 +291,15 @@ int level_load(int world,int lv,int flags)
      end=x;
     }
   }
- worldarea=&worldareas[0];
 
- if(worldareascnt)
-  if(flags&(1|2))
-   {
-   int y,tw=level.tilemap[level_elements].tilew,th=level.tilemap[level_elements].tileh;
-   for(x=worldarea->tx1;x<worldarea->tx2;x++)
-    for(y=worldarea->ty1;y<worldarea->ty2;y++)   
-     {
-      word     tile=tile_get(level_elements,x,y);
-      if(tile)
-       {
-        int px=x*tw;
-        int py=y*th;
-        switch(tile)
-         {
-          case 1:
-           if(flags&1)
-            {
-            hero=actor_get();    
-            hero->pos.x=(float)(px+tw/2);
-            hero->pos.y=(float)(py+th);
-            hero->animset=&charanim[tile-1];
-            hero->play=hero_play;hero->flags|=sprite_visible;
-            act_setanim(hero,anim_idle);
-            }
-          break;
-          case 2:
-          case 3:
-           if(flags&2)
-            {
-             _act*tmp=actor_get();    
-             tmp->kind=tile;
-             tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);
-             tmp->animset=&charanim[tile-1];tmp->flags|=sprite_hflip;
-             tmp->play=goomba_play;tmp->flags|=sprite_visible;
-             act_setanim(tmp,anim_walk);
-            }
-           break;
-         }
-       }
-     }   
-  }
+ level_loadarea(gm,0,flags);
+ 
  return worldareascnt;
 }
 
 void level_start(_game*gm)
 { 
- level_load(wrld,lv,1|2);
- if(hero)
-  camera_update(gm);
- 
- secs=300*GAME_FRAMERATE;
-
- gm->scene->status=scene_entering;
- gm->timer=0;gm->maxtimer=GAME_FRAMERATE;
+ level_load(gm,wrld,lv,1|2); 
 }
 
 // ************************************************************
@@ -281,12 +339,15 @@ int ingame_enter(_game*gm)
  anim_fire=strhash("fire");
 
  anim_jump=strhash("jump");
+ anim_dress=strhash("dress");
  
  anim_die=strhash("die");
  anim_backdie=strhash("backdie");
 
  anim_grow=strhash("grow");
  anim_shrink=strhash("shrink");
+
+ anim_shell=strhash("shell");
  
  anim_climb=strhash("climb");
 
@@ -333,7 +394,6 @@ int tile_set(int mapid,int x,int y,word ntile)
   {
    if(map[x+y*level.tilemap[mapid].mapw]!=ntile)
     patch_add(mapid,x,y,ntile);
-   //map[x+y*level.tilemap[mapid].mapw]=ntile;
    return 1;
   }
  else
@@ -343,15 +403,15 @@ int tile_set(int mapid,int x,int y,word ntile)
 void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
 {
  int      x,y,tx=0,ty,played=0;
- word     tw=tm->tilemap[level_map].tilew,th=tm->tilemap[level_map].tileh;
- for(y=0;y<tm->tilemap[level_map].maph;y++)
+ word     tw=tm->tilemap[layer_map].tilew,th=tm->tilemap[layer_map].tileh;
+ for(y=0;y<tm->tilemap[layer_map].maph;y++)
   if(by+y*th-cy+th<0)
     ;
    else
    if(by+y*th-cy>canvas->h)
     break;
    else
-    for(x=0;x<tm->tilemap[level_map].mapw;x++)
+    for(x=0;x<tm->tilemap[layer_map].mapw;x++)
      if(bx+x*tw-cx+tw<0)
       ;
      else
@@ -359,7 +419,7 @@ void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_i
        break;
       else
        {
-        word tile=tile_get(level_map,worldarea->bkg,y);
+        word tile=tile_get(layer_map,worldarea->bkg,y);
         if(tile)
          {
           ty=th*tile;
@@ -372,15 +432,15 @@ void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_i
 void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy)
 {
  int  x,y,tx=0,ty,played=0;
- word tw=tm->tilemap[level_map].tilew,th=tm->tilemap[level_map].tileh;
- for(y=0;y<tm->tilemap[level_map].maph;y++)
+ word tw=tm->tilemap[layer_map].tilew,th=tm->tilemap[layer_map].tileh;
+ for(y=0;y<tm->tilemap[layer_map].maph;y++)
   if(by+y*th-cy+th<0)
     ;
    else
    if(by+y*th-cy>canvas->h)
     break;
    else
-    for(x=0;x<tm->tilemap[level_map].mapw;x++)
+    for(x=0;x<tm->tilemap[layer_map].mapw;x++)
      if(bx+x*tw-cx+tw<0)
       ;
      else
@@ -388,25 +448,29 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
        break;
       else
        {
-        word tile=tile_get(level_map,x,y);
+        word tile=tile_get(layer_map,x,y);
         if(tile)
          {
           if(tile==tile_background_blockQ1)
            tile=blockQ[(secs/(GAME_FRAMERATE/2))%sizeof(blockQ)];
+          else
+          if(tile==tile_background_blockC1)
+           tile=blockC[(secs/(GAME_FRAMERATE/2))%sizeof(blockC)];
           ty=th*tile;
           if((blockhitX==x)&&(blockhitY==y))
            {
-            int displacement=blockdisplacement[(blockhitT/(GAME_FRAMERATE/15))];
+            int displacement;
+            blockhitTD=(blockhitT/(GAME_FRAMERATE/15));
+            displacement=blockdisplacement[blockhitTD];
             ty=th*tile;
             img_blit(canvas,bx+x*tw-cx,by+y*th-cy-displacement,i,tx,ty,tw,th,0);
             blockhitT++;
             if((blockhitT/(GAME_FRAMERATE/15))>=sizeof(blockdisplacement))
              {
-              word ltile=tile_get(level_map,x,y);
+              word ltile=tile_get(layer_map,x,y);
               blockhitX=blockhitY=-1;blockhitT=0;
               if((ltile==tile_background_blockQ1)||(ltile==tile_background_blockQH))
-               tile_set(level_map,x,y,tile_background_blockQX);
-               //map[x+y*tm->tilemap[t].mapw]=tile_background_blockQX;
+               tile_set(layer_map,x,y,tile_background_blockQX);
              }
            }
           else
@@ -418,7 +482,7 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
 
 void gui_draw()
 {
- int y=1,x=1,w=6,rsecs=secs/GAME_FRAMERATE,digit=3;
+ int y=1,x=1,w=6,digit=3;
  int marioid=2,coinid=0,xid=1;
  
  img_blit(&canvas,x,y,&gui.atlas,marioid*w,0,6,6,0);x+=6;
@@ -430,9 +494,6 @@ void gui_draw()
  img_blit(&canvas,x,y,&gui.atlas,xid*w,0,6,6,0);x+=4;
  gui_drawdigits(x,y,coins,2);
 
- //y=1;x=(GAME_WIDTH-3*6)/2+1;
- //gui_drawstring(x,y,"SCORE");
- //y=7;
  y=1;x=(GAME_WIDTH-6*4)/2+2;
  gui_drawdigits(x,y,score,6);
 
@@ -447,20 +508,35 @@ void canvas_update(_game*gm)
 {
  int     i;
 
+ qsort(&pactors[0],actors_count,sizeof(pactors[0]),actors_zxsort);
+
+ // draw background
  tilebackground_blit(&canvas,0,0,GAME_WIDTH,GAME_HEIGHT,&level,&offscreen,f2int(cam.x),f2int(cam.y));
 
+ // draw behind blocks elements
+ for(i=0;i<actors_count;i++)
+  if(pactors[i]->zorder<0)
+   act_draw(gm,pactors[i]);
+
+ // draw blocks elements
  tilemap_blit(&canvas,0,0,GAME_WIDTH,GAME_HEIGHT,&level,&offscreen,f2int(cam.x),f2int(cam.y));
  
- qsort(&pactors[0],actors_count,sizeof(pactors[0]),actors_ysort);
+ // draw front elements
  for(i=0;i<actors_count;i++)
-  act_draw(gm,pactors[i]);
+  if(pactors[i]->zorder>=0)
+   act_draw(gm,pactors[i]);
 
+ // draw gui
  gui_draw();
 
  if(gm->scene->status==scene_playing)
  {
   if(secs>0)
-   secs--;
+   {
+    secs--;
+    rsecs=secs/GAME_FRAMERATE;
+   }
+  // draw gui message
   if(*guimsg)
    gui_drawstring(-1,-1,guimsg);
  }
@@ -566,49 +642,150 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
   return 0;
 }
 
-int handle_aabbcollisioncore(_aabb*box,_fpos*delta)
+int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid)
 {
- int txx,tyy,x,y,tw=level.tilemap[level_map].tilew,th=level.tilemap[level_map].tileh,cnt=0,ay,by,ax,bx;
- //word    *map=&level.maps[level.tilemap[id].mappos];
+ int   txx,tyy,x,y,tw=level.tilemap[layer_map].tilew,th=level.tilemap[layer_map].tileh,cnt=0,ay,by,ax,bx,lx,ly;
+ _aabb tile;
  txx=f2int((box->x+box->w/2)/tw);
- tyy=f2int((box->y+box->h/2)/th);  
- if(delta->x>0) {ax=0;bx=2;}
+ tyy=f2int((box->y+box->h/2)/th);
+ lx=max(1,box->w/tw)+1;ly=max(1,box->h/th)+1;
+ if(delta->x>0) {ax=0;bx=lx;}
  else
- if(delta->x<0) {ax=-2;bx=0;}
+ if(delta->x<0) {ax=-lx;bx=0;}
  else           {ax=-1;bx=1;}
- if(delta->y>0) {ay=0;by=2;}
+ if(delta->y>0) {ay=0;by=ly;}
  else
- if(delta->y<0) {ay=-2;by=0;}
+ if(delta->y<0) {ay=-ly;by=0;}
  else           {ay=-1;by=1;}
  for(y=ay;y<=by;y++)
-  if(isbetween(tyy+y,0,level.tilemap[level_map].maph-1))
+  if(isbetween(tyy+y,0,level.tilemap[layer_map].maph-1))
    for(x=ax;x<=bx;x++)
-    if(isbetween(txx+x,0,level.tilemap[level_map].mapw-1))
+    if(isbetween(txx+x,0,level.tilemap[layer_map].mapw-1))
      {
-      word what=tile_get(level_map,(txx+x),(tyy+y));
-      if(isbetween(what,tile_solid_start,tile_solid_end))
-       {
-        _aabb tile;
-        tile.x=(float)(txx+x)*tw;
-        tile.y=(float)(tyy+y)*th;
-        tile.w=(float)tw;tile.h=(float)th;
-        if(aabb_intersect(box,&tile,delta))
+      word what=tile_get(layer_map,(txx+x),(tyy+y));  
+      if(what)
+       if(solid==0)
         {
-         colX=txx+x;colY=tyy+y;colKIND=what;
-         cnt++;
+         if(isbetween(what,tile_background_blockC1,tile_background_blockC3))
+          {
+           tile.x=(float)(txx+x)*tw;tile.y=(float)(tyy+y)*th;
+           tile.w=(float)tw;tile.h=(float)th;
+           if(aabb_check(box,&tile,delta->x,delta->y))
+            {
+             coin_take(1);
+             tile_set(layer_map,(txx+x),(tyy+y),0);      
+            }
+          }
         }
-       }
+       else
+        if(isbetween(what,tile_solid_start,tile_solid_end))
+         {         
+          tile.x=(float)(txx+x)*tw;tile.y=(float)(tyy+y)*th;
+          tile.w=(float)tw;tile.h=(float)th;
+          if(aabb_intersect(box,&tile,delta))
+          {
+           colX=txx+x;colY=tyy+y;colKIND=what;
+           cnt++;
+          }
+         }
      }
  return cnt;
+}
+
+void act_getmappos(_act*c,_fpos*delta,int*tx,int*ty)
+{
+ _framedesc*fr=getframe(c);
+ float      w=fr->w,h=fr->h;
+ _aabb      box;
+ box.x=c->pos.x-w/2;box.w=w;
+ box.y=c->pos.y-h;box.h=h;
+ if(delta) {box.x+=delta->x;box.y+=delta->y;}
+ if(tx) *tx=f2int((box.x+box.w/2)/level.tilemap[layer_map].tilew);
+ if(ty) *ty=f2int((box.y+box.h/2)/level.tilemap[layer_map].tileh);  
+}
+
+void coin_take(int addscore)
+{
+ coins++;
+ if(addscore) score+=200;
+}
+
+int coin_collect(_act*c,_fpos*delta)
+{
+ _aabb box; 
+ act_getaabb(c,&box); 
+ if(handle_aabbcollisioncore(&box,delta,0))
+  return 1;
+ return 0;
 }
 
 int handle_collisions(_act*c,_fpos*delta)
 {
  _aabb box; 
  act_getaabb(c,&box); 
- if(handle_aabbcollisioncore(&box,delta))
+ if(handle_aabbcollisioncore(&box,delta,1))
   return 1;
  return 0;
+}
+
+int act_ondownsecretpssage(_act*c,short*newarea)
+{
+ int        tx,ty;
+ word       tile;
+ act_getmappos(c,NULL,&tx,&ty);
+ tile=tile_get(layer_elements,tx,ty+1);
+ if(isbetween(tile,worldarea_enter,worldarea_enter+3))
+  {
+   if(newarea) *newarea=tile-worldarea_enter;
+   return 1;
+  }
+ else
+  return 0;
+}
+
+int act_onleftrightsecretpssage(_act*c,short*newarea)
+{
+ if((c->dpos.x)&&(c->dpos.y==0))
+  {
+   int        tx,ty;
+   word       tile;
+   act_getmappos(c,NULL,&tx,&ty);
+   if(c->dpos.x>0)
+    tile=tile_get(layer_elements,tx+1,ty);
+   else
+    if(c->dpos.x<0)
+     tile=tile_get(layer_elements,tx-1,ty);
+   if(isbetween(tile,worldarea_enter,worldarea_exit-1))
+    {
+     if(newarea) *newarea=tile-worldarea_enter;
+     return 1;
+    }
+  }
+ return 0;
+}
+
+int act_onleftpole(_act*c)
+{
+ if(c->dpos.x>0)
+  {
+   int        tx,ty;
+   word       tile;
+   act_getmappos(c,NULL,&tx,&ty);
+   tile=tile_get(layer_map,tx+1,ty);
+   if(tile==tile_background_pole)
+    return 1;
+  }
+ return 0;
+}
+
+int act_onhitblock(_act*c)
+{
+ int        tx,ty;
+ act_getmappos(c,NULL,&tx,&ty);
+ if((tx==blockhitX)&&(ty+1==blockhitY)&&(blockhitTD<3))
+  return 1;
+ else
+  return 0;
 }
 
 int act_ontheground(_act*c)
@@ -619,7 +796,7 @@ int act_ontheground(_act*c)
  _aabb      box;
  box.x=c->pos.x-w/2;box.w=w;
  box.y=c->pos.y-h;box.h=h;
- if(handle_aabbcollisioncore(&box,&delta))
+ if(handle_aabbcollisioncore(&box,&delta,1))
   return 1;
  return 0;
 }
@@ -634,6 +811,20 @@ int wait_play(_game*gm,_act*goomba)
   return 0;
  else
   return 1;
+}
+
+int movingelements_rise(_act*goomba)
+{
+ if(goomba->zorder<0)
+  if(goomba->timer)
+   {
+    goomba->timer--;
+    goomba->pos.y--;
+    return 1;
+   }
+  else
+   goomba->zorder=0;
+ return 0;
 }
 
 void explosion_add(_act*goomba)
@@ -653,7 +844,8 @@ void fragments_add(int x,int y)
  int  id=1,tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh,tile=brickpieces_anim+1;
  int  px=x*tw,py=(y-1)*th;
  tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);  
- tmp->play=goomba_play;
+ tmp->defspeed=goomba_speed;
+ tmp->play=movingelements_play;
  tmp->dpos.y=-6; 
  tmp->animset=&charanim[tile-1];
  tmp->kind=tile;tmp->flags|=sprite_visible;
@@ -663,7 +855,8 @@ void fragments_add(int x,int y)
  tmp=actor_get();
  tmp->flags|=sprite_hflip;
  tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);  
- tmp->play=goomba_play;
+ tmp->defspeed=goomba_speed;
+ tmp->play=movingelements_play;
  tmp->dpos.y=-6;
  tmp->animset=&charanim[tile-1];
  tmp->kind=tile;tmp->flags|=sprite_visible;
@@ -676,34 +869,41 @@ void bonus_add(int x,int y,int tile)
  if(tile)
   {
    _act*tmp=actor_get();    
-   int  id=1,tw=level.tilemap[id].tilew,th=level.tilemap[id].tileh;
+   int  tw=level.tilemap[layer_map].tilew,th=level.tilemap[layer_map].tileh;
    int  px=x*tw,py=(y-1)*th;
    tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);   
    if(tile==bonus_coin)
     {
+     px=x*tw,py=(y-1)*th;
+     tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);   
      tmp->play=coin_play;
      tmp->dpos.y=-6;
     }
    else
-   if(tile==bonus_magicmushroom)
-   {
-    if(hero->status&status_magic)
-     {
-      tile=fireflower_anim+1;
-      tmp->play=fireflower_play;
-     }
-    else
-     tmp->play=goomba_play;
-   }
-   else
-   if(tile==bonus_mushroom1up)
-    tmp->play=goomba_play;
-   else
-    if(tile==bonus_star)
-     {
-      tmp->play=goomba_play;
-      tmp->dpos.y=-6;
-     }
+    {
+     px=x*tw,py=y*th;
+     tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);    
+     tmp->zorder=-1;
+     tmp->defspeed=goomba_speed;
+     tmp->play=movingelements_play;tmp->timer=th;
+     if(tile==bonus_magicmushroom)
+      {       
+       if(hero->status&status_magic)
+        {
+         tile=fireflower_anim+1;
+         tmp->play=fireflower_play;
+        }
+      }
+     else
+     if(tile==bonus_mushroom1up)
+      ;      
+     else
+      if(tile==bonus_star)
+       {
+        tmp->defspeed=goomba_speed*2;
+        tmp->dpos.y=-6;
+       }
+    }
    tmp->animset=&charanim[tile-1];
    tmp->kind=tile;tmp->flags|=sprite_visible;
    act_setanim(tmp,anim_idle);   
@@ -724,6 +924,8 @@ int fireflower_play(_game*gm,_act*goomba)
 {
  if(!fbox_ispointinborder(&goomba->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
   return 0;
+ if(movingelements_rise(goomba))
+  return 1;
  if((fabs(goomba->pos.x-hero->pos.x)<10)&&(fabs(goomba->pos.y-hero->pos.y)<10))
   if(act_intersect(goomba,hero))
    {
@@ -750,7 +952,7 @@ int coin_play(_game*gm,_act*hero)
  hero->pos.y+=hero->dpos.y;
  if(hero->dpos.y>2)
   {
-   coins++;
+   coin_take(0);
    score_add(hero->pos.x,hero->pos.y,200);
    return 0;
   }
@@ -792,12 +994,23 @@ int enemy_collision(_game*gm,_act*fire)
  return fnd;
 }
 
-int goomba_play(_game*gm,_act*goomba)
+void troopa_shellrun(_act*goomba)
 {
- float speed;
+ goomba->defspeed=goomba_speed*4;
+ if(hero->pos.x<goomba->pos.x)
+  bitclear(goomba->flags,sprite_hflip)
+ else
+  if(hero->pos.x>=goomba->pos.x)
+   goomba->flags|=sprite_hflip;
+}
 
+int movingelements_play(_game*gm,_act*goomba)
+{
+ float speed=goomba->defspeed;
  if(!fbox_ispointinborder(&goomba->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
   return 0;
+ if(movingelements_rise(goomba))
+  return 1;
  if(goomba->animid==anim_die)
  {
   goomba->timer++;
@@ -814,12 +1027,13 @@ int goomba_play(_game*gm,_act*goomba)
     if(goomba->dpos.y==0)
      goomba->dpos.y=-4;
    }
+ /*
  speed=goomba_speed;
  if(goomba->kind==bonus_star)
   speed*=2;
  else
   if(goomba->kind==bonus_fireball)
-   speed*=3;
+   speed*=3;*/
 
  if(goomba->flags&sprite_hflip)
   goomba->dpos.x=-speed;
@@ -836,6 +1050,9 @@ int goomba_play(_game*gm,_act*goomba)
   }
  else
  if((fabs(goomba->pos.x-hero->pos.x)<10)&&(fabs(goomba->pos.y-hero->pos.y)<10))
+  if(hero->animid==anim_die)
+   ;
+  else
   if(act_intersect(goomba,hero))
    if(goomba->kind==bonus_star)
     {
@@ -857,10 +1074,25 @@ int goomba_play(_game*gm,_act*goomba)
      return 0;
     }
    else
-   if((hero->pos.y<goomba->pos.x+1)&&(hero->dpos.y>0)&&(hero->animid!=anim_die))
+   if((hero->pos.y<goomba->pos.y+1)&&(hero->dpos.y>0)&&(hero->animid!=anim_die))
     {
-     act_setanim(goomba,anim_die);
-     score_add(goomba->pos.x,goomba->pos.y,100);
+     if(goomba->kind==enemy_greentroopa)
+      {
+       if(goomba->defspeed==goomba_speed)
+       {
+        goomba->defspeed=0;
+        act_setanim(goomba,anim_shell);
+        score_add(goomba->pos.x,goomba->pos.y,100);
+       }
+       else
+       if(goomba->defspeed==0)
+        troopa_shellrun(goomba);
+      }
+     else
+      {
+       act_setanim(goomba,anim_die);
+       score_add(goomba->pos.x,goomba->pos.y,100);
+      }
      act_setanim(hero,anim_jump);
      hero->status|=status_jump;
      hero->dpos.y=-hero_topjumpspeed;
@@ -868,6 +1100,9 @@ int goomba_play(_game*gm,_act*goomba)
    else
     if(hero->flags&sprite_outlined)
      goomba_backdie(goomba);      
+    else
+    if((goomba->kind==enemy_greentroopa)&&(goomba->animid==anim_shell)&&(goomba->defspeed==0))
+     troopa_shellrun(goomba);
     else
      hero_killed(hero);
  if(goomba->animid==anim_die)
@@ -879,35 +1114,52 @@ int goomba_play(_game*gm,_act*goomba)
    if(goomba->status&status_fall)
     ;
    else
-   if(handle_collisions(goomba,&delta))
     {     
-     if(goomba->dpos.x!=delta.x)
-      if(goomba->kind==bonus_fireball)
+     if(handle_collisions(goomba,&delta))
+      {     
+       if(goomba->dpos.x!=delta.x)
+        if(goomba->kind==bonus_fireball)
+         {
+          explosion_add(goomba);
+          return 0;
+         }
+        else
+        if(goomba->dpos.y==0)
+         {
+         if(goomba->flags&sprite_hflip)
+          goomba->flags-=sprite_hflip;      
+         else
+          goomba->flags|=sprite_hflip;      
+         }
+       if(goomba->dpos.x!=delta.x)
+        goomba->dpos.x=0;
+       if(goomba->dpos.y!=delta.y)
+        goomba->dpos.y=0;
+      }    
+     else
+      if(act_onhitblock(goomba))
        {
-        explosion_add(goomba);
-        return 0;
+        goomba->dpos.y=-2;
+        if(goomba->flags&sprite_hflip)
+         goomba->flags-=sprite_hflip;      
+        else
+         goomba->flags|=sprite_hflip;      
        }
-      else
-      if(goomba->dpos.y==0)
-       {
-       if(goomba->flags&sprite_hflip)
-        goomba->flags-=sprite_hflip;      
-       else
-        goomba->flags|=sprite_hflip;      
-       }
-     if(goomba->dpos.x!=delta.x)
-      goomba->dpos.x=0;
-     if(goomba->dpos.y!=delta.y)
-      goomba->dpos.y=0;
     }
    goomba->pos.x+=delta.x;
    goomba->pos.y+=delta.y;
+   if(goomba->animid==anim_shell)
+    ;
+   else
    if((goomba->status&status_mainmask)==status_normal)
     if(goomba->dpos.x)
      act_setanim(goomba,anim_walk);
   }
  else
-  act_setanim(goomba,anim_idle); 
+  if(goomba->animid==anim_shell)
+   ;
+  else
+   act_setanim(goomba,anim_idle); 
  return 1;
 }
 
@@ -932,11 +1184,12 @@ void hero_fire(_act*hero)
      tmp->pos.x-=5;
     }
    else
-    tmp->pos.x+=5;
+    tmp->pos.x+=5;   
    tmp->pos.y=hero->pos.y-4;
-   tmp->play=goomba_play;
+   tmp->defspeed=goomba_speed*3;
+   tmp->play=movingelements_play;
    tmp->animset=&charanim[tile-1];
-   tmp->kind=tile;tmp->flags|=sprite_visible;
+   tmp->kind=(byte)tile;tmp->flags|=sprite_visible;
    act_setanim(hero,anim_fire);
    act_setanim(tmp,anim_idle);   
   }
@@ -950,7 +1203,12 @@ void hero_killed(_act*hero)
     ;
    else
    if(hero->status&status_magic)
-    act_setanim(hero,anim_shrink);
+    {
+     if((hero->animid==anim_shrink)||((hero->animid==0)&&(hero->prevanimid==anim_shrink)))
+      ;
+     else
+      act_setanim(hero,anim_shrink);
+    }
    else
     {
      if(lives>1)
@@ -1073,32 +1331,44 @@ int hero_play(_game*gm,_act*hero)
    else
     if(gm->input.key_down)
      {
+      if(act_ondownsecretpssage(hero,&changearea))
+       gm->scene->status=scene_leaving;
      }   
    if(hero->dpos.x||hero->dpos.y)
     {
      _fpos delta={hero->dpos.x,hero->dpos.y};     
-     if(handle_collisions(hero,&delta))
+     if(coin_collect(hero,&delta))
+      ;
+     if(act_onleftrightsecretpssage(hero,&changearea))
+      gm->scene->status=scene_leaving;
+     else
+     if(act_onleftpole(hero))
       {
-       
+       gm->scene->status=scene_levelcompleted;
+       gm->timer=0;gm->maxtimer=GAME_FRAMERATE*2;
+      }
+     else
+     if(handle_collisions(hero,&delta))
+      {       
        if(isbetween(colKIND,tile_background_wallA,tile_background_wallB)||(colKIND==tile_background_blockQ1)||(colKIND==tile_background_blockQH))
-        if(hero->dpos.y<0)
+        if((hero->dpos.y<0)&&isbetween(hero->pos.x,colX*level.tilemap[layer_map].tilew-3,(colX+1)*level.tilemap[layer_map].tilew+3))
          {
-          word what=tile_get(level_elements,colX,colY);            
+          word what=tile_get(layer_elements,colX,colY);            
           if((hero->status&status_magic)&&isbetween(colKIND,tile_background_wallA,tile_background_wallB)&&(what==0))
            {
-            tile_set(level_map,colX,colY,0);
+            tile_set(layer_map,colX,colY,0);
             fragments_add(colX,colY);
            }
           else
            {            
-            blockhitX=colX;blockhitY=colY;blockhitT=0;          
+            blockhitX=colX;blockhitY=colY;blockhitTD=0;blockhitT=0;          
             if(what)
              {
               bonus_add(blockhitX,blockhitY,what);              
-              tile_set(level_elements,colX,colY,0);
+              tile_set(layer_elements,colX,colY,0);
              }
             if(colKIND==tile_background_blockQH)
-             tile_set(level_map,colX,colY,tile_background_blockQX);
+             tile_set(layer_map,colX,colY,tile_background_blockQX);
            }
          }
 
@@ -1182,6 +1452,30 @@ int ingame_update(_game*gm)
 
  canvas_update(gm);    
 
+ if(gm->scene->status==scene_levelcompleted)
+  {
+   if(rsecs)
+    {
+     if(rsecs>10)
+      {
+       rsecs-=10;
+       score+=500;
+      }
+     else
+      {
+       rsecs--;
+       score+=50;
+      }
+    }
+   else
+    gm->timer++;
+   if(gm->timer==gm->maxtimer)
+    {
+      lv++;
+      level_start(gm);
+    }
+  }
+ else
  if(gm->scene->status==scene_entering)
   {
     efx_fade(&canvas,gm->timer,gm->maxtimer,1);
@@ -1196,13 +1490,18 @@ int ingame_update(_game*gm)
    gm->timer++;
    if(gm->timer==gm->maxtimer)
     {
-     if(score>topscore)
-      topscore=score;
-     lives--;
-     if(lives>0)
-      level_start(gm);
+     if(changearea!=-1)
+      level_loadarea(gm,changearea,1|2|4);
      else
-      splash_leave(gm,&home);
+      {
+       if(score>topscore)
+        topscore=score;
+       lives--;
+       if(lives>0)
+        level_start(gm);
+       else
+        splash_leave(gm,&home);
+      }
     }
   }
 

@@ -1,5 +1,12 @@
+//
+// Copyright (c) 2023, Marco Giorgini [ @marcogiorgini ]
+// Distributed under the MIT License
+//
+// home screen code for SuperMB64
+//
+
 // ************************************************************
-// TITLE SCREEN CODE
+// HOME SCREEN CODE
 // ************************************************************
 
 _img      home_logo;
@@ -12,7 +19,7 @@ int home_enter(_game*gm)
  mario_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mario");
  anim_idle=strhash("idle");
 
- level_load(1,1,1);
+ level_load(gm,1,1,1);
 
  camera_update(gm);
 

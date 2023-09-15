@@ -19,6 +19,8 @@ int home_enter(_game*gm)
  mario_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mario");
  anim_idle=strhash("idle");
 
+ hero=NULL;
+
  level_load(gm,1,1,1);
 
  camera_update(gm);

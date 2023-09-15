@@ -164,7 +164,7 @@ typedef struct __act{
  _anim*   animset;               // active animset pointer
  dword    animid,prevanimid;     // active and last animid
 
- byte     flags,status,kind;
+ byte     flags,status,nextstatus,autostatus,kind;
  
  word     frame_cur,
           frame_from,frame_to,
@@ -380,7 +380,7 @@ word      worldareascnt=0;
 _fbox*    worldarea;
 _fbox     worldareas[8]; 
 
-_anim     charanim[16];
+_anim     charanim[24];
 int       anim_idle,anim_walk,anim_shoot,anim_jump,anim_dress,anim_die,anim_backdie,anim_attack,anim_grow,anim_shrink,anim_fire,anim_climb,anim_shell;
 int       charanim_cnt;
 int       mario_anim,mariohi_anim,mariofire_anim,score_anim,fireflower_anim,brickpieces_anim,fireball_anim,fireballexplosion_anim;
@@ -392,6 +392,11 @@ void camera_update(_game*gm);
 
 void tilebackground_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy);
 void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,int cx,int cy);
+
+void input_clear(_game*gm)
+{
+ gm->input.key_left=gm->input.key_right=gm->input.key_up=gm->input.key_down=gm->input.key_control=false;
+}
 
 // ************************************************************
 

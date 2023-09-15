@@ -24,7 +24,9 @@ mariohi=sprite_minimariohi.ase
 mariofire=sprite_minimariohif.ase
 
 goomba=sprite_minigoomba.ase
+goombaunderground=sprite_minigoombaunderground.ase
 greentroopa=sprite_minigreentroopa.ase
+redtroopa=sprite_miniredtroopa.ase
 
 coin=sprite_coin.ase
 

@@ -22,6 +22,11 @@
 #define tile_background_blockQ2 8
 #define tile_background_blockQ3 9
 
+#define tile_background_pipeupTL 12
+#define tile_background_pipeupTR 13
+#define tile_background_pipeupML 16
+#define tile_background_pipeupMR 17
+
 #define tile_background_blockC1 24
 #define tile_background_blockC2 25
 #define tile_background_blockC3 26
@@ -42,27 +47,54 @@
 
 // ************************************************************
 
+#define player_mario        1
+
 #define enemy_goomba        2
 #define enemy_greentroopa   3
+#define enemy_redtroopa     4
 
-#define bonus_coin          4
-#define bonus_magicmushroom 5
-#define bonus_mushroom1up   6
-#define bonus_star          7
-#define bonus_fireflower    8
-#define bonus_fragments     9
-#define bonus_fireball      10
+#define bonus_coin          5
+#define bonus_magicmushroom 6
+#define bonus_mushroom1up   7
+#define bonus_star          8
+
+#define castle_flag         9
+
+#define worldarea_start     10
+#define worldarea_end       11
+
+#define worldlevel_exit     12
+
+#define worldarea_enter     13
+#define worldarea_exit      17
+
+#define bonus_fireflower    9
+#define bonus_fragments     10
+#define bonus_fireball      12
 
 #define forcedforward 1
 
+// CURRENT status
 #define status_normal      0
 #define status_jump        1
 #define status_dead        2
 #define status_fall        4
+#define status_automode  128 
+
+#define autostatus_flagandleaving 1
+#define autostatus_downthepipe    2
+#define autostatus_upthepipe      3
+#define autostatus_rightthepipe   4
 
 #define status_magic       8
 #define status_invincible 16
 #define status_fire       32
+
+// NEXT status
+#define status_killed      1
+#define status_autojump    2      
+#define status_star        4
+#define status_grow        8
 
 #define status_mainmask 7
 
@@ -129,6 +161,8 @@ void hero_killed(_act*hero);
 void hero_grow(_act*hero);
 int  hero_play(_game*gm,_act*hero);
 void hero_fire(_act*hero);
+int  hero_onpipeup(_act*c);
+void hero_setautopipemode(_act*hero,int automode);
 
 void coin_take(int addscore);
 int  coin_play(_game*gm,_act*hero);
@@ -142,12 +176,15 @@ int  fireflower_play(_game*gm,_act*hero);
 int  movingelements_play(_game*gm,_act*goomba);
 void goomba_backdie(_act*goomba);
 
+
+
 char      guimsg[32];
 _anim     gui;
 _actplay  charplay[]={hero_play,movingelements_play,movingelements_play,coin_play,movingelements_play,movingelements_play};
 short     lives,coins,score,secs,rsecs;
 short     wrld,lv;
 short     changearea,changelevel,currentarea;
+_act*     flag;
 
 byte      blockQ[]={tile_background_blockQ1,tile_background_blockQ2,tile_background_blockQ3,tile_background_blockQ2};
 byte      blockC[]={tile_background_blockC1,tile_background_blockC2,tile_background_blockC3,tile_background_blockC2};
@@ -155,12 +192,6 @@ short     blockhitTD,blockhitX=-1,blockhitY=-1,blockhitT=0,colX,colY,colKIND;
 byte      blockdisplacement[]={1,2,3,3,2,1,0};
 
 // ************************************************************
-
-#define worldarea_start   8
-#define worldarea_end     9
-
-#define worldarea_enter  10
-#define worldarea_exit   14
 
 int level_loadarea(_game*gm,short newarea,int flags)
 {
@@ -171,13 +202,14 @@ int level_loadarea(_game*gm,short newarea,int flags)
  else
   memset(&bhero,0,sizeof(bhero));
 
+ flag=NULL;
  *guimsg=0;
  actor_reset(); 
  patch_reset();
 
  if(isbetween(newarea,0,worldareascnt-1))
   {
-   word herokey=1;
+   word herokey=player_mario;
    currentarea=newarea;changelevel=changearea=-1;
    worldarea=&worldareas[currentarea];
    if(flags&4)
@@ -198,14 +230,17 @@ int level_loadarea(_game*gm,short newarea,int flags)
             if(flags&1)
              {
               hero=actor_get();                  
-              if(bhero.play)
+              if(bhero.play&&((bhero.status&status_dead)==0))
                memcpy(hero,&bhero,sizeof(bhero));
               else
                {
                 hero->kind=(byte)tile;             
                 hero->animset=&charanim[tile-1];
-                hero->play=hero_play;hero->flags|=sprite_visible;
+                hero->play=hero_play;
                }
+              hero->zorder=1;
+              bitclear(hero->flags,sprite_hflip)
+              hero->flags|=(sprite_visible|sprite_used);
               act_setanim(hero,anim_idle);
               hero->dpos.x=hero->dpos.y=0;
               hero->pos.x=(float)(px+tw/2);
@@ -217,6 +252,7 @@ int level_loadarea(_game*gm,short newarea,int flags)
             {
              case enemy_goomba:
              case enemy_greentroopa:
+             case enemy_redtroopa:
               if(flags&2)
                {
                 _act*tmp=actor_get();                    
@@ -228,16 +264,26 @@ int level_loadarea(_game*gm,short newarea,int flags)
                 act_setanim(tmp,anim_walk);
                }
               break;
+              case castle_flag:
+               {
+                flag=actor_get();                    
+                flag->kind=(byte)tile;
+                flag->pos.x=(float)(px+tw/2);flag->pos.y=(float)(py+th);
+                flag->animset=&charanim[tile-1];
+                flag->flags|=sprite_visible;
+                act_setanim(flag,anim_idle);
+               }
+              break;
             }
          }
        }   
     }
    if(hero)
     camera_update(gm);
-   
-   secs=300*GAME_FRAMERATE;
-   rsecs=secs/GAME_FRAMERATE;
 
+   if(hero_onpipeup(hero))
+    hero_setautopipemode(hero,autostatus_upthepipe);
+   
    gm->scene->status=scene_entering;
    gm->timer=0;gm->maxtimer=GAME_FRAMERATE;
    return 1;
@@ -258,8 +304,6 @@ int level_load(_game*gm,int world,int lv,int flags)
  strcat(tilemap,".a");
  if(!img_load(&offscreen,tilemap))
   return 0;
-
- hero=NULL;
  
  mapw=level.tilemap[layer_elements].mapw;maph=level.tilemap[layer_elements].maph;
  tw=level.tilemap[layer_elements].tilew;th=level.tilemap[layer_elements].tilew;
@@ -292,7 +336,12 @@ int level_load(_game*gm,int world,int lv,int flags)
     }
   }
 
+ input_clear(gm);
+
  level_loadarea(gm,0,flags);
+
+ secs=300*GAME_FRAMERATE;
+ rsecs=secs/GAME_FRAMERATE;
  
  return worldareascnt;
 }
@@ -317,10 +366,12 @@ int ingame_enter(_game*gm)
  mario_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mario");
  anim_load(&charanim[charanim_cnt++],"goomba");
  anim_load(&charanim[charanim_cnt++],"greentroopa");
+ anim_load(&charanim[charanim_cnt++],"redtroopa");
  anim_load(&charanim[charanim_cnt++],"coin");
  anim_load(&charanim[charanim_cnt++],"magicmushroom");
  anim_load(&charanim[charanim_cnt++],"mushroom1up");
  anim_load(&charanim[charanim_cnt++],"star");
+ anim_load(&charanim[charanim_cnt++],"poleflag");
  fireflower_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"fireflower");
 
  brickpieces_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"brickfragments");
@@ -350,6 +401,8 @@ int ingame_enter(_game*gm)
  anim_shell=strhash("shell");
  
  anim_climb=strhash("climb");
+
+ hero=NULL;
 
  level_start(gm);
  
@@ -728,6 +781,17 @@ int handle_collisions(_act*c,_fpos*delta)
  return 0;
 }
 
+int hero_onpipeup(_act*c)
+{
+ int        tx,ty;
+ word       tile;
+ act_getmappos(c,NULL,&tx,&ty);
+ tile=tile_get(layer_map,tx,ty);
+ if(isbetween(tile,tile_background_pipeupTL,tile_background_pipeupMR))
+  return 1;
+ return 0;
+}
+
 int act_ondownsecretpssage(_act*c,short*newarea)
 {
  int        tx,ty;
@@ -771,8 +835,22 @@ int act_onleftpole(_act*c)
    int        tx,ty;
    word       tile;
    act_getmappos(c,NULL,&tx,&ty);
-   tile=tile_get(layer_map,tx+1,ty);
+   tile=tile_get(layer_map,tx,ty);
    if(tile==tile_background_pole)
+    return 1;
+  }
+ return 0;
+}
+
+int act_onlevelexit(_act*c)
+{
+ if(c->dpos.x>0)
+  {
+   int        tx,ty;
+   word       tile;
+   act_getmappos(c,NULL,&tx,&ty);
+   tile=tile_get(layer_elements,tx,ty);
+   if(tile==worldlevel_exit)
     return 1;
   }
  return 0;
@@ -984,7 +1062,7 @@ int enemy_collision(_game*gm,_act*fire)
  int i,fnd=0;
  for(i=0;i<actors_count;i++)
   if((pactors[i]->flags&(sprite_activated|sprite_drawn))==(sprite_activated|sprite_drawn))
-   if(isbetween(pactors[i]->kind,2,3))
+   if(isbetween(pactors[i]->kind,enemy_goomba,enemy_redtroopa))
     if(act_intersect(fire,pactors[i]))
     {
      goomba_backdie(pactors[i]);
@@ -1027,14 +1105,7 @@ int movingelements_play(_game*gm,_act*goomba)
     if(goomba->dpos.y==0)
      goomba->dpos.y=-4;
    }
- /*
- speed=goomba_speed;
- if(goomba->kind==bonus_star)
-  speed*=2;
- else
-  if(goomba->kind==bonus_fireball)
-   speed*=3;*/
-
+ 
  if(goomba->flags&sprite_hflip)
   goomba->dpos.x=-speed;
  else
@@ -1056,9 +1127,7 @@ int movingelements_play(_game*gm,_act*goomba)
   if(act_intersect(goomba,hero))
    if(goomba->kind==bonus_star)
     {
-     bitclear(hero->status,status_invincible);
-     hero->flags|=sprite_outlined;
-     hero->timer=0;
+     hero->nextstatus|=status_star;
      return 0;
     }
    else
@@ -1070,13 +1139,13 @@ int movingelements_play(_game*gm,_act*goomba)
    else
    if(goomba->kind==bonus_magicmushroom)
     {
-     hero_grow(hero);
+     hero->nextstatus|=status_grow;     
      return 0;
     }
    else
    if((hero->pos.y<goomba->pos.y+1)&&(hero->dpos.y>0)&&(hero->animid!=anim_die))
     {
-     if(goomba->kind==enemy_greentroopa)
+     if((goomba->kind==enemy_greentroopa)||(goomba->kind==enemy_redtroopa))
       {
        if(goomba->defspeed==goomba_speed)
        {
@@ -1093,18 +1162,17 @@ int movingelements_play(_game*gm,_act*goomba)
        act_setanim(goomba,anim_die);
        score_add(goomba->pos.x,goomba->pos.y,100);
       }
-     act_setanim(hero,anim_jump);
-     hero->status|=status_jump;
-     hero->dpos.y=-hero_topjumpspeed;
+     hero->nextstatus|=status_autojump;     
     }
    else
     if(hero->flags&sprite_outlined)
      goomba_backdie(goomba);      
     else
-    if((goomba->kind==enemy_greentroopa)&&(goomba->animid==anim_shell)&&(goomba->defspeed==0))
+    if(((goomba->kind==enemy_greentroopa)||(goomba->kind==enemy_redtroopa))&&(goomba->animid==anim_shell)&&(goomba->defspeed==0))
      troopa_shellrun(goomba);
     else
-     hero_killed(hero);
+     hero->nextstatus|=status_killed;
+     
  if(goomba->animid==anim_die)
   ;
  else
@@ -1189,10 +1257,27 @@ void hero_fire(_act*hero)
    tmp->defspeed=goomba_speed*3;
    tmp->play=movingelements_play;
    tmp->animset=&charanim[tile-1];
-   tmp->kind=(byte)tile;tmp->flags|=sprite_visible;
+   tmp->kind=bonus_fireball;tmp->flags|=sprite_visible;
    act_setanim(hero,anim_fire);
    act_setanim(tmp,anim_idle);   
   }
+}
+
+void gui_setmsg(const char*msg)
+{
+ strcpy(guimsg,msg);
+}
+
+void hero_died(_act*hero)
+{
+ if(lives>1)
+  gui_setmsg("OUCH");
+ else
+  gui_setmsg("GAME OVER");
+ act_setanim(hero,anim_die); 
+ bitclear(hero->status,status_invincible)
+ bitclear(hero->flags,sprite_flashing)
+ hero->status|=status_dead;
 }
 
 void hero_killed(_act*hero)
@@ -1211,23 +1296,124 @@ void hero_killed(_act*hero)
     }
    else
     {
-     if(lives>1)
-      strcpy(guimsg,"OUCH");
-     else
-      strcpy(guimsg,"GAME OVER");
-     act_setanim(hero,anim_die);
-     hero->status|=status_dead;
+     hero_died(hero);
      hero->dpos.y=-hero_topjumpspeed*1.25f;
     }
   }
 }
 
+void hero_handlenextstatus(_act*hero)
+{
+ if(hero->status&status_dead)
+   ;
+  else
+   {
+    if(hero->nextstatus&status_star)
+     {
+      bitclear(hero->status,status_invincible);
+      hero->flags|=sprite_outlined;
+      hero->timer=0;
+     }
+    else
+    if(hero->nextstatus&status_killed)
+     hero_killed(hero);
+    if(hero->status&status_dead)
+     ;
+    else
+     {      
+      if(hero->nextstatus&status_autojump)
+       {
+        act_setanim(hero,anim_jump);
+        hero->status|=status_jump;
+        hero->dpos.y=-hero_topjumpspeed;
+       }
+      if(hero->nextstatus&status_grow)
+       hero_grow(hero);
+     }
+    hero->nextstatus=0;
+   }
+}
+
+void hero_setautopipemode(_act*hero,int automode)
+{
+ hero->timer=0;hero->zorder=-1;
+ hero->status|=status_automode;hero->autostatus=automode;
+}
+
+void hero_clearautomode(_act*hero)
+{
+ bitclear(hero->status,status_automode)
+ hero->autostatus=0;hero->zorder=1;
+}
+
+void hero_leavingarea(_game*gm,_act*hero)
+{
+ hero_clearautomode(hero);
+ bitclear(hero->flags,sprite_visible) 
+ gm->scene->status=scene_leaving;
+}
+
 int hero_play(_game*gm,_act*hero)
 {
  int move=0;
- //if(hero->status&status_dead)
+ 
+ // we need to have a centralized way to handle potential multiple status change
+ // to sort priorities
+ if(hero->nextstatus)
+  hero_handlenextstatus(hero);
+
  if(!fbox_ispointinborder(&hero->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
-  return 0; 
+  {
+   hero_died(hero);
+   return 0; 
+  }
+
+ if(gm->scene->status==scene_entering)
+  input_clear(gm);
+ else
+ if(hero->status&status_automode)
+  {
+   input_clear(gm);
+   switch(hero->autostatus)
+    {
+     case autostatus_downthepipe:
+      hero->pos.y+=0.5f;
+      hero->timer++;
+      if(hero->timer==32)
+       hero_leavingarea(gm,hero);       
+     break;
+     case autostatus_rightthepipe:
+      hero->pos.x+=0.5f;
+      hero->timer++;
+      if(hero->timer==20)
+       hero_leavingarea(gm,hero);
+     break;
+     case autostatus_upthepipe:
+      hero->pos.y-=0.5f;
+      hero->timer++;
+      if(hero->timer==32)
+       hero_clearautomode(hero);
+     break;
+     case autostatus_flagandleaving:
+      {
+       _framedesc*fr=getframe(hero);
+       if((hero->animid==anim_climb)&&((hero->dpos.y)||(flag->pos.y<hero->pos.y-fr->h)))
+        {
+         if(flag->pos.y<hero->pos.y-fr->h)
+          flag->pos.y+=2.0f;
+        }
+       else
+        {
+         if(hero->animid==anim_climb)
+          {
+           score_add(flag->pos.x,flag->pos.y,400);
+           act_setanim(hero,anim_walk);
+          }
+         gm->input.key_right=true;
+        }
+      }
+    }
+  }
  
  if(gm->input.key_control)
   if(hero->status&status_fire)
@@ -1275,6 +1461,7 @@ int hero_play(_game*gm,_act*hero)
  else
   {
    int onground=act_ontheground(hero);
+   
    if(gm->input.key_left)
     {
      if(hero->dpos.x>=-hero_maxspeed)
@@ -1332,20 +1519,33 @@ int hero_play(_game*gm,_act*hero)
     if(gm->input.key_down)
      {
       if(act_ondownsecretpssage(hero,&changearea))
-       gm->scene->status=scene_leaving;
+       hero_setautopipemode(hero,autostatus_downthepipe);              
      }   
    if(hero->dpos.x||hero->dpos.y)
     {
      _fpos delta={hero->dpos.x,hero->dpos.y};     
      if(coin_collect(hero,&delta))
       ;
-     if(act_onleftrightsecretpssage(hero,&changearea))
-      gm->scene->status=scene_leaving;
-     else
-     if(act_onleftpole(hero))
+     if((hero->dpos.x>0)&&act_onleftrightsecretpssage(hero,&changearea))
       {
+       hero_setautopipemode(hero,autostatus_rightthepipe);      
+       act_setanim(hero,anim_walk);
+      }
+     else
+     if(act_onleftpole(hero)&&((hero->status&status_automode)==0))
+      {
+       hero->dpos.x=0;
+       hero->status|=status_automode;hero->autostatus=autostatus_flagandleaving;
+       act_setanim(hero,anim_climb);
+      }
+     else
+     if(act_onlevelexit(hero))
+      {       
+       bitclear(hero->flags,sprite_visible)
+       bitclear(hero->status,status_automode)
+       hero->autostatus=0;
        gm->scene->status=scene_levelcompleted;
-       gm->timer=0;gm->maxtimer=GAME_FRAMERATE*2;
+       gm->timer=0;gm->maxtimer=GAME_FRAMERATE;
       }
      else
      if(handle_collisions(hero,&delta))
@@ -1380,11 +1580,17 @@ int hero_play(_game*gm,_act*hero)
      hero->pos.x+=delta.x;
      hero->pos.y+=delta.y;
      if((hero->status&status_mainmask)==status_normal)
-      if(hero->dpos.x!=0)
-       act_setanim(hero,anim_walk);
+      if(hero->animid==anim_climb)
+       ;
       else
-       if(hero->dpos.y==0)
-        act_setanim(hero,anim_idle); 
+       if(hero->dpos.y>0)
+        act_setanim(hero,anim_jump);
+       else
+        if(hero->dpos.x!=0)
+         act_setanim(hero,anim_walk);
+        else
+         if(hero->dpos.y==0)
+          act_setanim(hero,anim_idle); 
 
      if(hero->pos.x<worldarea->x1)
       hero->pos.x=worldarea->x1;
@@ -1394,7 +1600,10 @@ int hero_play(_game*gm,_act*hero)
      
     }
    else
-    act_setanim(hero,anim_idle); 
+    if(hero->animid==anim_climb)
+     ;
+    else
+     act_setanim(hero,anim_idle); 
 
    camera_update(gm);
   }
@@ -1430,8 +1639,11 @@ int ingame_update(_game*gm)
    for(i=0;i<actors_count;i++)
     if(pactors[i]->flags&sprite_activated)
      {
+      if(pactors[i]->play==NULL)
+       ;
+      else
       if(pactors[i]->play(gm,pactors[i])==0)
-       {pactors[i]->flags-=sprite_used;del++;}
+       {bitclear(pactors[i]->flags,sprite_used);del++;}
      }
     else
      if(pactors[i]->pos.x<cam.x+GAME_WIDTH*2)
@@ -1468,7 +1680,10 @@ int ingame_update(_game*gm)
       }
     }
    else
-    gm->timer++;
+    {
+     if(gm->timer==0) gui_setmsg("LEVEL COMPLETED");
+     gm->timer++;
+    }
    if(gm->timer==gm->maxtimer)
     {
       lv++;
@@ -1478,14 +1693,16 @@ int ingame_update(_game*gm)
  else
  if(gm->scene->status==scene_entering)
   {
-    efx_fade(&canvas,gm->timer,gm->maxtimer,1);
-    gm->timer++;
-    if(gm->timer==gm->maxtimer)
-     {gm->scene->status=scene_playing;gm->timer=0;gm->maxtimer=GAME_FRAMERATE*2;}
+   if(hero)
+    hero->play(gm,hero);
+   efx_fade(&canvas,gm->timer,gm->maxtimer,1);
+   gm->timer++;
+   if(gm->timer==gm->maxtimer)
+    {gm->scene->status=scene_playing;gm->timer=0;gm->maxtimer=GAME_FRAMERATE;}
   }
  else
  if(gm->scene->status==scene_leaving)
-  {
+  {   
    efx_fade(&canvas,gm->timer,gm->maxtimer,-1);
    gm->timer++;
    if(gm->timer==gm->maxtimer)

@@ -640,53 +640,50 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
    if((delta->y!=0)&&aabb_check(a,b,0,delta->y))
     mask|=2;
    if(mask==0)
-    ;
-   else
-    {
-     if(mask&1)
-      if(delta->x>0)
+    mask|=(1|2);
+   if(mask&1)
+    if(delta->x>0)
+     {
+      if(a->x+a->w+delta->x>b->x) 
        {
-        if(a->x+a->w+delta->x>b->x) 
-         {
-          float dx=b->x-(a->x+a->w);
-          if(dx<0)
-           ;
-          else
-           delta->x=dx;
-         }
+        float dx=b->x-(a->x+a->w);
+        if(dx<0)
+         ;
+        else
+         delta->x=dx;
        }
-      else
-      if(delta->x<0)
+     }
+    else
+    if(delta->x<0)
+     {
+      if(a->x+delta->x<b->x+b->w) 
        {
-        if(a->x+delta->x<b->x+b->w) 
-         {
-          float dx=(b->x+b->w)-a->x;
-          if(dx>0)
-           ;
-          else
-           delta->x=dx;
-         }
+        float dx=(b->x+b->w)-a->x;
+        if(dx>0)
+         ;
+        else
+         delta->x=dx;
        }
-     if(mask&2)
-      if(delta->y>0)
+     }
+   if(mask&2)
+    if(delta->y>0)
+     {
+      if(a->y+a->h+delta->y>b->y) 
        {
-        if(a->y+a->h+delta->y>b->y) 
-         {
-          float dy=b->y-(a->y+a->h);
-          delta->y=dy;
-         }
+        float dy=b->y-(a->y+a->h);
+        delta->y=dy;
        }
-      else
-      if(delta->y<0)
+     }
+    else
+    if(delta->y<0)
+     {
+      if(a->y+delta->y<b->y+b->h) 
        {
-        if(a->y+delta->y<b->y+b->h) 
-         {
-          float dy=(b->y+b->h)-a->y;
-          if(dy>0)
-           ;
-          else
-           delta->y=dy;
-         }
+        float dy=(b->y+b->h)-a->y;
+        if(dy>0)
+         ;
+        else
+         delta->y=dy;
        }
      }
    return 1;
@@ -695,10 +692,12 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
   return 0;
 }
 
-int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid)
+int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid,int simple)
 {
  int   txx,tyy,x,y,tw=level.tilemap[layer_map].tilew,th=level.tilemap[layer_map].tileh,cnt=0,ay,by,ax,bx,lx,ly;
- _aabb tile;
+ _aabb tile[8];
+ _ipos ptile[8];
+ word  wtile[8];
  txx=f2int((box->x+box->w/2)/tw);
  tyy=f2int((box->y+box->h/2)/th);
  lx=max(1,box->w/tw)+1;ly=max(1,box->h/th)+1;
@@ -721,9 +720,9 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid)
         {
          if(isbetween(what,tile_background_blockC1,tile_background_blockC3))
           {
-           tile.x=(float)(txx+x)*tw;tile.y=(float)(tyy+y)*th;
-           tile.w=(float)tw;tile.h=(float)th;
-           if(aabb_check(box,&tile,delta->x,delta->y))
+           tile[cnt].x=(float)(txx+x)*tw;tile[cnt].y=(float)(tyy+y)*th;
+           tile[cnt].w=(float)tw;tile[cnt].h=(float)th;
+           if(aabb_check(box,&tile[cnt],delta->x,delta->y))
             {
              coin_take(1);
              tile_set(layer_map,(txx+x),(tyy+y),0);      
@@ -733,15 +732,68 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid)
        else
         if(isbetween(what,tile_solid_start,tile_solid_end))
          {         
-          tile.x=(float)(txx+x)*tw;tile.y=(float)(tyy+y)*th;
-          tile.w=(float)tw;tile.h=(float)th;
-          if(aabb_intersect(box,&tile,delta))
-          {
-           colX=txx+x;colY=tyy+y;colKIND=what;
-           cnt++;
-          }
+          tile[cnt].x=(float)(txx+x)*tw;tile[cnt].y=(float)(tyy+y)*th;
+          tile[cnt].w=(float)tw;tile[cnt].h=(float)th;
+          if(aabb_check(box,&tile[cnt],delta->x,delta->y))
+           {
+            ptile[cnt].x=(word)txx+x;
+            ptile[cnt].y=(word)tyy+y;
+            wtile[cnt]=what;
+            if(cnt&&(ptile[cnt].x==ptile[cnt-1].x)&&(ptile[cnt].y==ptile[cnt-1].y+1))
+             tile[cnt-1].h+=tile[cnt].h;
+            else
+             cnt++;
+            if(simple||(cnt>4))
+             break;
+           }
          }
      }
+ if(cnt)
+  if(simple)
+   ;
+  else
+   {
+    int   n,rcnt=0;
+    if(cnt>1)
+     {
+      n=0;
+      while(n<cnt-1)
+       {
+        float distA=aabb_distance(box,&tile[n],delta->x,delta->y);
+        float distB=aabb_distance(box,&tile[n+1],delta->x,delta->y);
+        if(distA>distB)
+         {
+          _aabb t=tile[n];
+          _ipos tp=ptile[n];
+          word  tw=wtile[n];
+          tile[n]=tile[n+1];
+          tile[n+1]=t;
+          ptile[n]=ptile[n+1];
+          ptile[n+1]=tp;
+          wtile[n]=wtile[n+1];
+          wtile[n+1]=tw;
+          if(n)
+           n--;
+         }
+        else
+         n++;
+       }
+     }
+    colX=-1;
+    for(n=0;n<cnt;n++)
+     if(aabb_intersect(box,&tile[n],delta))
+      {
+       rcnt++;
+       if(colX==-1)
+        {
+         colX=ptile[n].x;
+         colY=ptile[n].y;
+         colKIND=wtile[n];
+        }
+      }
+    if(rcnt>1)
+     rcnt=0;
+   }
  return cnt;
 }
 
@@ -767,7 +819,7 @@ int coin_collect(_act*c,_fpos*delta)
 {
  _aabb box; 
  act_getaabb(c,&box); 
- if(handle_aabbcollisioncore(&box,delta,0))
+ if(handle_aabbcollisioncore(&box,delta,0,1))
   return 1;
  return 0;
 }
@@ -776,7 +828,7 @@ int handle_collisions(_act*c,_fpos*delta)
 {
  _aabb box; 
  act_getaabb(c,&box); 
- if(handle_aabbcollisioncore(&box,delta,1))
+ if(handle_aabbcollisioncore(&box,delta,1,0))
   return 1;
  return 0;
 }
@@ -874,7 +926,7 @@ int act_ontheground(_act*c)
  _aabb      box;
  box.x=c->pos.x-w/2;box.w=w;
  box.y=c->pos.y-h;box.h=h;
- if(handle_aabbcollisioncore(&box,&delta,1))
+ if(handle_aabbcollisioncore(&box,&delta,1,1))
   return 1;
  return 0;
 }
@@ -1523,7 +1575,8 @@ int hero_play(_game*gm,_act*hero)
      }   
    if(hero->dpos.x||hero->dpos.y)
     {
-     _fpos delta={hero->dpos.x,hero->dpos.y};     
+     _fpos delta={hero->dpos.x,hero->dpos.y};  
+     int   fnd=0;
      if(coin_collect(hero,&delta))
       ;
      if((hero->dpos.x>0)&&act_onleftrightsecretpssage(hero,&changearea))
@@ -1572,13 +1625,25 @@ int hero_play(_game*gm,_act*hero)
            }
          }
 
+       {
+        _fpos delta2={delta.x,delta.y};  
+        if(handle_collisions(hero,&delta2))
+         fnd++;
+       }
+
        if(hero->dpos.x!=delta.x)
-        hero->dpos.x=0;
+        {         
+         hero->dpos.x=0;
+         if(delta.x)
+          fnd++;
+        }
        if(hero->dpos.y!=delta.y)
         hero->dpos.y=0;
       }
+
      hero->pos.x+=delta.x;
      hero->pos.y+=delta.y;
+
      if((hero->status&status_mainmask)==status_normal)
       if(hero->animid==anim_climb)
        ;

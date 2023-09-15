@@ -15,7 +15,7 @@ extern "C" {
 typedef struct{
                int x;
                int y;
-              } _ipos2d;
+              } _ipos;
 typedef struct{
                float x;
                float y;

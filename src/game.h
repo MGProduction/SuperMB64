@@ -34,6 +34,11 @@ typedef struct{
  float x,y,w,h;
 }_aabb;
 
+float aabb_distance(_aabb*a,_aabb*b,float deltax,float deltay)
+{
+ return ((a->x+a->w/2+deltax)-(b->x+b->w/2))*((a->x+a->w/2+deltax)-(b->x+b->w/2))+((a->y+a->h/2+deltay)-(b->y+b->h/2))*((a->y+a->h/2+deltay)-(b->y+b->h/2));
+}
+
 int aabb_check(_aabb*a,_aabb*b,float deltax,float deltay)
 {
  return ((a->x+deltax<b->x+b->w)&&(a->x+deltax+a->w>b->x)&&(a->y+deltay<b->y+b->h)&&(a->y+deltay+a->h>b->y));

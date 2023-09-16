@@ -1355,6 +1355,7 @@ void hero_handlenextstatus(_act*hero)
     if(hero->nextstatus&status_star)
      {
       bitclear(hero->status,status_invincible);
+      bitclear(hero->flags,sprite_flashing)
       hero->flags|=sprite_outlined;
       hero->timer=0;
      }

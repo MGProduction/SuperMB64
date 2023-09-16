@@ -270,7 +270,10 @@ int level_loadarea(_game*gm,short newarea,int flags)
     camera_update(gm);
 
    if(hero_onpipeup(hero))
-    hero_setautopipemode(hero,autostatus_upthepipe);
+    {
+     hero->pos.x+=4;
+     hero_setautopipemode(hero,autostatus_upthepipe);
+    }
    else
     if((wrld==1)&&(lv==2)&&(currentarea==0))
      {hero->status|=status_automode;hero->autostatus=autostatus_runright;}
@@ -313,7 +316,7 @@ int level_load(_game*gm,int world,int lv,int flags)
        break;
      worldarea=&worldareas[worldareascnt++];
      
-     worldarea->x1=start*tw;
+     worldarea->x1=(float)start*tw;
      worldarea->x2=(float)worldarea->x1+(x-start)*tw;
      worldarea->y1=0;
      worldarea->y2=(float)worldarea->y1+y*th+th;
@@ -555,12 +558,14 @@ void canvas_update(_game*gm)
  gui_draw();
 
  if(gm->scene->status==scene_playing)
- {
   if(secs>0)
    {
     secs--;
     rsecs=secs/GAME_FRAMERATE;
    }
+
+ if((gm->scene->status==scene_playing)||(gm->scene->status==scene_levelcompleted))
+ {  
   // draw gui message
   if(*guimsg)
    gui_drawstring(-1,-1,guimsg);
@@ -571,7 +576,7 @@ void canvas_update(_game*gm)
 void camera_update(_game*gm)
 {
  _framedesc*fr=getframe(hero);
- float      w=fr->w/2;
+ float      w=fr->w/2.0f;
  float      h=fr->h;
  
  if((hero->pos.x+w)-cam.x>GAME_WIDTH*3/5)
@@ -612,7 +617,10 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
    if((delta->y!=0)&&aabb_check(a,b,0,delta->y))
     mask|=2;
    if(mask==0)
-    mask|=(1|2);
+    if(fabs(delta->x)>fabs(delta->y))
+     mask|=1;
+    else
+     mask|=2;
    if(mask&1)
     if(delta->x>0)
      {
@@ -666,13 +674,13 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
 
 int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid,int simple)
 {
- int   txx,tyy,x,y,tw=level.tilemap[layer_map].tilew,th=level.tilemap[layer_map].tileh,cnt=0,ay,by,ax,bx,lx,ly;
+ int   txx,tyy,x,y,tw=level.tilemap[layer_map].tilew,th=level.tilemap[layer_map].tileh,cnt=0,ay,by,ax,bx,lx,ly,stop=0;
  _aabb tile[8];
  _ipos ptile[8];
  word  wtile[8];
  txx=f2int((box->x+box->w/2)/tw);
  tyy=f2int((box->y+box->h/2)/th);
- lx=max(1,box->w/tw)+1;ly=max(1,box->h/th)+1;
+ lx=(int)float_max(1,box->w/tw)+1;ly=(int)float_max(1,box->h/th)+1;
  if(delta->x>0) {ax=0;bx=lx;}
  else
  if(delta->x<0) {ax=-lx;bx=0;}
@@ -681,9 +689,9 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid,int simple)
  else
  if(delta->y<0) {ay=-ly;by=0;}
  else           {ay=-1;by=1;}
- for(y=ay;y<=by;y++)
+ for(y=ay;(stop==0)&&(y<=by);y++)
   if(isbetween(tyy+y,0,level.tilemap[layer_map].maph-1))
-   for(x=ax;x<=bx;x++)
+   for(x=ax;(stop==0)&&(x<=bx);x++)
     if(isbetween(txx+x,0,level.tilemap[layer_map].mapw-1))
      {
       word what=tile_get(layer_map,(txx+x),(tyy+y));  
@@ -716,7 +724,7 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid,int simple)
             else
              cnt++;
             if(simple||(cnt>4))
-             break;
+             stop=1;
            }
          }
      }
@@ -1103,10 +1111,16 @@ void troopa_shellrun(_act*goomba)
 {
  goomba->defspeed=goomba_speed*4;
  if(hero->pos.x<goomba->pos.x)
-  bitclear(goomba->flags,sprite_hflip)
+  {
+   goomba->pos.x=hero->pos.x+8;
+   bitclear(goomba->flags,sprite_hflip)
+  }
  else
   if(hero->pos.x>=goomba->pos.x)
-   goomba->flags|=sprite_hflip;
+   {
+    goomba->pos.x=hero->pos.x-8;
+    goomba->flags|=sprite_hflip;
+   }
 }
 
 int movingelements_play(_game*gm,_act*goomba)
@@ -1580,9 +1594,9 @@ int hero_play(_game*gm,_act*hero)
    if(hero->dpos.x||hero->dpos.y)
     {
      _fpos delta={hero->dpos.x,hero->dpos.y};  
-     int   fnd=0;
+     int   fnd=0,nomove=0;
      if(coin_collect(hero,&delta))
-      ;
+      fnd++;
      if((hero->dpos.x>0)&&act_onleftrightsecretpssage(hero,&changearea))
       {
        hero_setautopipemode(hero,autostatus_rightthepipe);      
@@ -1610,15 +1624,23 @@ int hero_play(_game*gm,_act*hero)
        if(isbetween(colKIND,tile_background_wallA,tile_background_wallB)||(colKIND==tile_background_blockQ1)||(colKIND==tile_background_blockQH))
         if((hero->dpos.y<0)&&isbetween(hero->pos.x,colX*level.tilemap[layer_map].tilew-3,(colX+1)*level.tilemap[layer_map].tilew+3))
          {
-          word what=tile_get(layer_elements,colX,colY);            
+          word what=tile_get(layer_elements,colX,colY);    
+          if(tile_get(layer_map,colX,colY-1)==tile_background_blockC1)
+           {
+            bonus_add(colX,colY-1,bonus_coin);
+            tile_set(layer_map,colX,colY-1,0);
+           }
           if((hero->status&status_magic)&&isbetween(colKIND,tile_background_wallA,tile_background_wallB)&&(what==0))
            {
             tile_set(layer_map,colX,colY,0);
             fragments_add(colX,colY);
            }
           else
-           {            
-            blockhitX=colX;blockhitY=colY;blockhitTD=0;blockhitT=0;          
+           {
+            if((blockhitX==colX)&&(blockhitY==colY))
+             ;
+            else
+             {blockhitX=colX;blockhitY=colY;blockhitTD=0;blockhitT=0;}
             if(what)
              {
               bonus_add(blockhitX,blockhitY,what);              
@@ -1629,20 +1651,14 @@ int hero_play(_game*gm,_act*hero)
            }
          }
 
-       {
-        _fpos delta2={delta.x,delta.y};  
-        if(handle_collisions(hero,&delta2))
-         fnd++;
-       }
-
        if(hero->dpos.x!=delta.x)
-        {         
-         hero->dpos.x=0;
-         if(delta.x)
-          fnd++;
-        }
+        hero->dpos.x=0;
        if(hero->dpos.y!=delta.y)
         hero->dpos.y=0;
+
+       if(hero->dpos.x&&hero->dpos.y)
+        if((delta.x==0)&&(delta.y==0))
+         nomove=1;
       }
 
      hero->pos.x+=delta.x;

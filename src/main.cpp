@@ -268,13 +268,13 @@ int game_getinput(_game*gm)
           }
 #if defined(_GIF_SUPPORT)
           if( event->data.key == APP_KEY_F10 ) {
-           stbi_write_png("bin/screenshot.png",canvas.w,canvas.h,4,canvas.col,0);
+           stbi_write_png("bin/SuperMB64_screenshot.png",canvas.w,canvas.h,4,canvas.col,0);
           }
           if( event->data.key == APP_KEY_F5 ) {
            gif_start();
           }
           if( event->data.key == APP_KEY_F6 ) {
-           gif_stop("bin/video.png");
+           gif_stop("bin/SuperMB64_video.gif");
           }
 #endif
       }

@@ -20,6 +20,7 @@ typedef struct __scene{
 typedef struct{
  bool key_left,key_right,key_up,key_down;
  bool key_enter,key_space,key_control;
+ bool key_escape;
 }_input;
 
 typedef struct __game{

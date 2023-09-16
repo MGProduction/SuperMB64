@@ -17,11 +17,32 @@ int home_enter(_game*gm)
 
  charanim_cnt=0;
  mario_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mario");
+ 
  anim_idle=strhash("idle");
+ anim_walk=strhash("walk");
+ 
+ anim_attack=strhash("attack");
+ anim_fire=strhash("fire");
+
+ anim_jump=strhash("jump");
+ anim_dress=strhash("dress");
+ 
+ anim_die=strhash("die");
+ anim_backdie=strhash("backdie");
+
+ anim_grow=strhash("grow");
+ anim_shrink=strhash("shrink");
+
+ anim_shell=strhash("shell");
+ 
+ anim_climb=strhash("climb");
 
  hero=NULL;
 
  level_load(gm,1,1,1);
+
+ hero->status|=status_automode;
+ hero->autostatus=autostatus_demoplay;
 
  camera_update(gm);
 
@@ -61,10 +82,14 @@ int home_update(_game*gm)
 
  if(gm->scene->status==scene_playing)
   {
-  if((gm->tick&30)<15)
-   gui_drawstring((canvas.w-home_logo.w)/2,GAME_HEIGHT-10,"SPACE TO PLAY");
-  if(gm->input.key_space)
-   {gm->scene->status=scene_leaving;gm->timer=0;gm->maxtimer=GAME_FRAMERATE;}
+   if(hero) hero->play(gm,hero);
+   if((gm->tick&30)<15)
+    gui_drawstring((canvas.w-home_logo.w)/2,GAME_HEIGHT-10,"SPACE TO PLAY");
+   if(gm->input.key_space)
+    {gm->scene->status=scene_leaving;gm->timer=0;gm->maxtimer=GAME_FRAMERATE;}
+   else
+    if(gm->input.key_escape)
+     splash_leave(gm,NULL);
   }
  else
  if(gm->scene->status==scene_entering)
@@ -72,11 +97,12 @@ int home_update(_game*gm)
     efx_fade(&canvas,gm->timer,gm->maxtimer,1);
     gm->timer++;
     if(gm->timer==gm->maxtimer)
-     {gm->scene->status=scene_playing;}
+     {gm->scene->status=scene_playing;gm->timer=0;}
   }
  else
  if(gm->scene->status==scene_leaving)
   {
+   act_setanim(hero,anim_idle);
    efx_fade(&canvas,gm->timer,gm->maxtimer,-1);
    gm->timer++;
    if(gm->timer==gm->maxtimer)

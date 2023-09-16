@@ -74,18 +74,6 @@
 
 #define forcedforward 1
 
-// CURRENT status
-#define status_normal      0
-#define status_jump        1
-#define status_dead        2
-#define status_fall        4
-#define status_automode  128 
-
-#define autostatus_flagandleaving 1
-#define autostatus_downthepipe    2
-#define autostatus_upthepipe      3
-#define autostatus_rightthepipe   4
-
 #define status_magic       8
 #define status_invincible 16
 #define status_fire       32
@@ -283,6 +271,9 @@ int level_loadarea(_game*gm,short newarea,int flags)
 
    if(hero_onpipeup(hero))
     hero_setautopipemode(hero,autostatus_upthepipe);
+   else
+    if((wrld==1)&&(lv==2)&&(currentarea==0))
+     {hero->status|=status_automode;hero->autostatus=autostatus_runright;}
    
    gm->scene->status=scene_entering;
    gm->timer=0;gm->maxtimer=GAME_FRAMERATE;
@@ -382,25 +373,6 @@ int ingame_enter(_game*gm)
 
  mariohi_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mariohi");
  mariofire_anim=charanim_cnt;anim_load(&charanim[charanim_cnt++],"mariofire");
-
- anim_idle=strhash("idle");
- anim_walk=strhash("walk");
- 
- anim_attack=strhash("attack");
- anim_fire=strhash("fire");
-
- anim_jump=strhash("jump");
- anim_dress=strhash("dress");
- 
- anim_die=strhash("die");
- anim_backdie=strhash("backdie");
-
- anim_grow=strhash("grow");
- anim_shrink=strhash("shrink");
-
- anim_shell=strhash("shell");
- 
- anim_climb=strhash("climb");
 
  hero=NULL;
 
@@ -1115,12 +1087,15 @@ int enemy_collision(_game*gm,_act*fire)
  for(i=0;i<actors_count;i++)
   if((pactors[i]->flags&(sprite_activated|sprite_drawn))==(sprite_activated|sprite_drawn))
    if(isbetween(pactors[i]->kind,enemy_goomba,enemy_redtroopa))
+    if(fire==pactors[i])
+     ;
+    else
     if(act_intersect(fire,pactors[i]))
-    {
-     goomba_backdie(pactors[i]);
-     explosion_add(pactors[i]);
-     fnd++;
-    }
+     {
+      goomba_backdie(pactors[i]);
+      explosion_add(pactors[i]);
+      fnd++;
+     }
  return fnd;
 }
 
@@ -1162,6 +1137,9 @@ int movingelements_play(_game*gm,_act*goomba)
   goomba->dpos.x=-speed;
  else
   goomba->dpos.x=+speed;
+
+ if((goomba->animid==anim_shell)&&(goomba->defspeed!=0))
+  enemy_collision(gm,goomba);
 
  if(goomba->status&status_fall)
   ;
@@ -1405,6 +1383,73 @@ void hero_leavingarea(_game*gm,_act*hero)
  gm->scene->status=scene_leaving;
 }
 
+
+void hero_playautomode(_game*gm,_act*hero)
+{
+ input_clear(gm);
+ switch(hero->autostatus)
+  {
+   case autostatus_demoplay:
+    act_setanim(hero,anim_walk);
+    if(gm->timer<gm->maxtimer*2)
+    {
+     if(hero->flags&sprite_hflip)
+      gm->input.key_left=true;
+     else
+      gm->input.key_right=true;
+     gm->timer++;
+    }
+    else
+    {
+     gm->timer=0;
+     if(hero->flags&sprite_hflip)
+      hero->flags-=sprite_hflip;
+     else
+      hero->flags|=sprite_hflip;
+    }
+   break;
+   case autostatus_downthepipe:
+    hero->pos.y+=0.5f;
+    hero->timer++;
+    if(hero->timer==32)
+     hero_leavingarea(gm,hero);       
+   break;
+   case autostatus_rightthepipe:
+    hero->pos.x+=0.5f;
+    hero->timer++;
+    if(hero->timer==20)
+     hero_leavingarea(gm,hero);
+   break;
+   case autostatus_upthepipe:
+    hero->pos.y-=0.5f;
+    hero->timer++;
+    if(hero->timer==32)
+     hero_clearautomode(hero);
+   break;
+   case autostatus_runright:
+    gm->input.key_right=true;
+   break;
+   case autostatus_flagandleaving:
+    {
+     _framedesc*fr=getframe(hero);
+     if((hero->animid==anim_climb)&&((hero->dpos.y)||(flag->pos.y<hero->pos.y-fr->h)))
+      {
+       if(flag->pos.y<hero->pos.y-fr->h)
+        flag->pos.y+=2.0f;
+      }
+     else
+      {
+       if(hero->animid==anim_climb)
+        {
+         score_add(flag->pos.x,flag->pos.y,400);
+         act_setanim(hero,anim_walk);
+        }
+       gm->input.key_right=true;
+      }
+    }
+  }
+}
+
 int hero_play(_game*gm,_act*hero)
 {
  int move=0;
@@ -1424,48 +1469,7 @@ int hero_play(_game*gm,_act*hero)
   input_clear(gm);
  else
  if(hero->status&status_automode)
-  {
-   input_clear(gm);
-   switch(hero->autostatus)
-    {
-     case autostatus_downthepipe:
-      hero->pos.y+=0.5f;
-      hero->timer++;
-      if(hero->timer==32)
-       hero_leavingarea(gm,hero);       
-     break;
-     case autostatus_rightthepipe:
-      hero->pos.x+=0.5f;
-      hero->timer++;
-      if(hero->timer==20)
-       hero_leavingarea(gm,hero);
-     break;
-     case autostatus_upthepipe:
-      hero->pos.y-=0.5f;
-      hero->timer++;
-      if(hero->timer==32)
-       hero_clearautomode(hero);
-     break;
-     case autostatus_flagandleaving:
-      {
-       _framedesc*fr=getframe(hero);
-       if((hero->animid==anim_climb)&&((hero->dpos.y)||(flag->pos.y<hero->pos.y-fr->h)))
-        {
-         if(flag->pos.y<hero->pos.y-fr->h)
-          flag->pos.y+=2.0f;
-        }
-       else
-        {
-         if(hero->animid==anim_climb)
-          {
-           score_add(flag->pos.x,flag->pos.y,400);
-           act_setanim(hero,anim_walk);
-          }
-         gm->input.key_right=true;
-        }
-      }
-    }
-  }
+  hero_playautomode(gm,hero);
  
  if(gm->input.key_control)
   if(hero->status&status_fire)
@@ -1699,33 +1703,36 @@ int ingame_update(_game*gm)
   gm->scene->status=scene_leaving;
 
  if(gm->scene->status==scene_playing)
-  {
-   int i,del=0;
-   for(i=0;i<actors_count;i++)
-    if(pactors[i]->flags&sprite_activated)
+  if(gm->input.key_escape)
+   return splash_leave(gm,&home);
+  else
+   {
+    int i,del=0;
+    for(i=0;i<actors_count;i++)
+     if(pactors[i]->flags&sprite_activated)
+      {
+       if(pactors[i]->play==NULL)
+        ;
+       else
+       if(pactors[i]->play(gm,pactors[i])==0)
+        {bitclear(pactors[i]->flags,sprite_used);del++;}
+      }
+     else
+      if(pactors[i]->pos.x<cam.x+GAME_WIDTH*2)
+       pactors[i]->flags|=sprite_activated;
+    // pack used sprites
+    if(del)
      {
-      if(pactors[i]->play==NULL)
-       ;
-      else
-      if(pactors[i]->play(gm,pactors[i])==0)
-       {bitclear(pactors[i]->flags,sprite_used);del++;}
+      int j;
+      i=j=0;
+      while(i<actors_count)
+       if(pactors[i]->flags&sprite_used)
+        pactors[j++]=pactors[i++];
+       else
+        i++;
+      actors_count=j;
      }
-    else
-     if(pactors[i]->pos.x<cam.x+GAME_WIDTH*2)
-      pactors[i]->flags|=sprite_activated;
-   // pack used sprites
-   if(del)
-    {
-     int j;
-     i=j=0;
-     while(i<actors_count)
-      if(pactors[i]->flags&sprite_used)
-       pactors[j++]=pactors[i++];
-      else
-       i++;
-     actors_count=j;
-    }
-  }
+   }
 
  canvas_update(gm);    
 

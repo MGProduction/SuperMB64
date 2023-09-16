@@ -10,6 +10,7 @@
 // ************************************************************
 
 extern _scene ingame;
+extern _scene home;
 
 #define SPLASH_IMAGE      "splash"
 _img logo;
@@ -61,7 +62,7 @@ int splash_update(_game*gm)
    efx_fade(&canvas,gm->timer,gm->maxtimer,-1);
    gm->timer++;
    if(gm->timer==gm->maxtimer)
-    splash_leave(gm,&ingame);
+    splash_leave(gm,&home);
   }
  return 1;
 }

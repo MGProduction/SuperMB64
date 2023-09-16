@@ -17,6 +17,22 @@ int     topscore;
 
 // ************************************************************
 
+// CURRENT status
+#define status_normal      0
+#define status_jump        1
+#define status_dead        2
+#define status_fall        4
+#define status_automode  128 
+
+#define autostatus_flagandleaving 1
+#define autostatus_downthepipe    2
+#define autostatus_upthepipe      3
+#define autostatus_rightthepipe   4
+#define autostatus_demoplay       5
+#define autostatus_runright       6
+
+// ************************************************************
+
 int gui_drawdigits(int x,int y,int val,int digitcnt);
 int gui_drawstring(int x,int y,const char*sz);
 

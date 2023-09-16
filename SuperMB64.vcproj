@@ -188,6 +188,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\src\gustavsson\audio.h"
+					>
+				</File>
+				<File
 					RelativePath=".\src\gustavsson\frametimer.h"
 					>
 				</File>

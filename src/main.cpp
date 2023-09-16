@@ -118,7 +118,7 @@
 #define MINILIB_IMPLEMENTATION
 #include "mg/minilib.h"
 #if defined(AUDIO_SUPPORT)
-#include "mg/audio.h"
+#include "gustavsson/audio.h"
 #endif
 #define MGIMG_IMPLEMENTATION
 #include "mg/img.h"
@@ -161,7 +161,8 @@ void game_start(_game*game)
 void game_end(_game*game)
 {
  anim_unload(&font);
- game->scene->leave(game,NULL);
+ if(game->scene)
+  game->scene->leave(game,NULL);
 }
 
 int gui_drawstring(int x,int y,const char*sz)
@@ -240,6 +241,7 @@ int game_getinput(_game*gm)
 {
  int i;
  app_input_t appinp = app_input( gm->app );
+ gm->input.key_escape = false; // single shot keys
  for(i = 0; i < appinp.count; ++i )
   {
       app_input_event_t* event = &appinp.events[ i ];
@@ -250,11 +252,7 @@ int game_getinput(_game*gm)
           if( event->data.key == APP_KEY_DOWN ) gm->input.key_down = true;
           if( event->data.key == APP_KEY_RETURN ) gm->input.key_enter = true;
           if( event->data.key == APP_KEY_SPACE ) gm->input.key_space = true;
-          if( event->data.key == APP_KEY_CONTROL ) gm->input.key_control = true;
-          if( event->data.key == APP_KEY_F11 ) {
-              gm->fullscreen = !gm->fullscreen;
-              app_screenmode( gm->app, gm->fullscreen ? APP_SCREENMODE_FULLSCREEN : APP_SCREENMODE_WINDOW );
-          }
+          if( event->data.key == APP_KEY_CONTROL ) gm->input.key_control = true;          
       } else if( event->type == APP_INPUT_KEY_UP ) {
           if( event->data.key == APP_KEY_LEFT ) gm->input.key_left = false;
           if( event->data.key == APP_KEY_RIGHT ) gm->input.key_right = false;
@@ -263,6 +261,11 @@ int game_getinput(_game*gm)
           if( event->data.key == APP_KEY_RETURN ) gm->input.key_enter = false;
           if( event->data.key == APP_KEY_SPACE ) gm->input.key_space = false;
           if( event->data.key == APP_KEY_CONTROL ) gm->input.key_control = false;
+          if( event->data.key == APP_KEY_ESCAPE ) gm->input.key_escape = true;
+          if( event->data.key == APP_KEY_F11 ) {
+              gm->fullscreen = !gm->fullscreen;
+              app_screenmode( gm->app, gm->fullscreen ? APP_SCREENMODE_FULLSCREEN : APP_SCREENMODE_WINDOW );
+          }
 #if defined(_GIF_SUPPORT)
           if( event->data.key == APP_KEY_F10 ) {
            stbi_write_png("bin/screenshot.png",canvas.w,canvas.h,4,canvas.col,0);
@@ -358,7 +361,11 @@ int app_proc( app_t* app, void* user_data )
         audio_render(&game);
 #endif
         game.tick++;
-        game.scene->update(&game); 
+
+        if(game.scene==NULL)
+         break;
+        else
+         game.scene->update(&game); 
 
 #if defined(_GIF_SUPPORT)
         gif_addframe((byte*)canvas.col);

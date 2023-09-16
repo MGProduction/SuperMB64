@@ -11,3 +11,5 @@ Graphic (redrawn by me) is heavily based on original Super Mario Bros NES game b
 Since I don't have any rights to the original graphics, I consider my derived graphics to be in the public domain (CC0).
 
 Everything is done with C code, with a simple game framework (app.h by Mattias Gustavsson) that I already used for other little projects.
+
+Itch.io page: https://marcogiorgini.itch.io/supermb-64

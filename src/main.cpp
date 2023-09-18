@@ -104,6 +104,10 @@
 // INCLUDES [AUDIO DECODING]
 // ************************************************************
 #if defined(AUDIO_SUPPORT)
+#if defined(USE_QOA)
+#define QOA_IMPLEMENTATION
+#include "libs/qoa.h"
+#endif
 #if defined(USE_MINIAUDIO)
 #define MINIAUDIO_IMPLEMENTATION
 //#define MA_ENABLE_ONLY_SPECIFIC_BACKENDS

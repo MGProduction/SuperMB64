@@ -13,7 +13,7 @@ _img    canvas;
 
 // ************************************************************
 
-int     snd_coin,snd_jumpA,snd_jumpB;
+int     snd_coin,snd_jumpA,snd_jumpB,snd_stomp;
 
 // ************************************************************
 

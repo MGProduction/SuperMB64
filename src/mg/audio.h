@@ -123,6 +123,19 @@ int audio_load(const char*name)
   {
    int    channels = 0,sample_rate = 0,samples=0;
    short* output = NULL;   
+#if defined(USE_QOA)
+   if(samples==0)
+    {
+     qoa_desc qoa;
+     output=(short*)qoi_decode(mem,size,&desc,0);
+     if(output)
+      {       
+       channels=qoa.channels;
+       sample_rate=qoa.samplerate;
+       samples=qoa.samples;
+      }         
+    }
+#endif
 #if defined(USE_MP3)
    if(samples==0)
     {
@@ -130,7 +143,7 @@ int audio_load(const char*name)
      mp3dec_file_info_t info;
      int      read=mp3dec_load_buf(&mp3d, mem,size, &info, NULL, NULL);
      if((read>=0)&&info.samples)
-      {
+      {       
        channels=info.channels;
        sample_rate=info.hz;
        output=info.buffer;
@@ -167,7 +180,19 @@ int audio_load(const char*name)
          sounds[i].snd.sample_pairs = output;
          sounds[i].snd.sample_pairs_count = samples;
          sounds[i].snd.sample_ratio=CALLBACK_FREQUENCY/sample_rate;
-         
+#if defined(USE_QOA)
+         if(0){
+          qoa_desc     qoa;
+          unsigned int size;
+          void*        encoded;
+          memset(&qoa,0,sizeof(qoa));
+          qoa.channels=sounds[i].snd.channels;
+          qoa.samplerate=sounds[i].snd.sample_rate;
+          qoa.samples=sounds[i].snd.sample_pairs_count;
+          encoded = qoa_encode(sounds[i].snd.sample_pairs, &qoa, &size);
+          free(encoded);
+         }
+#endif         
          return i;
        }
      return -2;

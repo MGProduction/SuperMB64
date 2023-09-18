@@ -19,13 +19,6 @@ _img logo;
 
 int splash_enter(_game*gm)
 {
-#if defined(AUDIO_SUPPORT)
- int musicid=audio_load("ingame");
- if(musicid>=0)
-  play_music(gm,audio_get(musicid));
- else
-  gm->error=-musicid;
-#endif
  img_load(&logo,SPLASH_IMAGE);
  gm->scene->status=scene_entering;
  gm->timer=0;gm->maxtimer=GAME_FRAMERATE;

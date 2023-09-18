@@ -155,7 +155,7 @@ void hero_setautopipemode(_act*hero,int automode);
 void coin_take(int addscore);
 int  coin_play(_game*gm,_act*hero);
 int  score_play(_game*gm,_act*goomba);
-void bonus_add(int x,int y,int tile);
+void bonus_add(_game*gm,int x,int y,int tile);
 void fragments_add(int x,int y);
 void explosion_add(_act*goomba);
 
@@ -508,7 +508,7 @@ void tilemap_blit(_img*canvas,int bx,int by,int bw,int bh,_tilemaps*tm,_img*i,in
        }
 }
 
-void gui_draw()
+void gui_draw(_game*gm)
 {
  int y=1,x=1,w=6,digit=3;
  int marioid=2,coinid=0,xid=1;
@@ -555,7 +555,7 @@ void canvas_update(_game*gm)
    act_draw(gm,pactors[i]);
 
  // draw gui
- gui_draw();
+ gui_draw(gm);
 
  if(gm->scene->status==scene_playing)
   if(secs>0)
@@ -974,7 +974,7 @@ void fragments_add(int x,int y)
  act_setanim(tmp,anim_idle);   
 }
 
-void bonus_add(int x,int y,int tile)
+void bonus_add(_game*gm,int x,int y,int tile)
 {
  if(tile)
   {
@@ -988,6 +988,7 @@ void bonus_add(int x,int y,int tile)
      tmp->pos.x=(float)(px+tw/2);tmp->pos.y=(float)(py+th);   
      tmp->play=coin_play;
      tmp->dpos.y=-6;
+     play_sound(gm,snd_coin,1.0f);
     }
    else
     {
@@ -1346,7 +1347,7 @@ void hero_killed(_act*hero)
   }
 }
 
-void hero_handlenextstatus(_act*hero)
+void hero_handlenextstatus(_game*gm,_act*hero)
 {
  if(hero->status&status_dead)
    ;
@@ -1371,6 +1372,7 @@ void hero_handlenextstatus(_act*hero)
         act_setanim(hero,anim_jump);
         hero->status|=status_jump;
         hero->dpos.y=-hero_topjumpspeed;
+        play_sound(gm,snd_jumpA,1);
        }
       if(hero->nextstatus&status_grow)
        hero_grow(hero);
@@ -1472,7 +1474,7 @@ int hero_play(_game*gm,_act*hero)
  // we need to have a centralized way to handle potential multiple status change
  // to sort priorities
  if(hero->nextstatus)
-  hero_handlenextstatus(hero);
+  hero_handlenextstatus(gm,hero);
 
  if(!fbox_ispointinborder(&hero->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
   {
@@ -1584,6 +1586,7 @@ int hero_play(_game*gm,_act*hero)
        act_setanim(hero,anim_jump);
        hero->status|=status_jump;
        hero->dpos.y-=hero_topjumpspeed+float_min(0.5f,abs(hero->dpos.x));
+       play_sound(gm,snd_jumpA,1);
       }
     }
    else
@@ -1628,7 +1631,7 @@ int hero_play(_game*gm,_act*hero)
           word what=tile_get(layer_elements,colX,colY);    
           if(tile_get(layer_map,colX,colY-1)==tile_background_blockC1)
            {
-            bonus_add(colX,colY-1,bonus_coin);
+            bonus_add(gm,colX,colY-1,bonus_coin);
             tile_set(layer_map,colX,colY-1,0);
            }
           if((hero->status&status_magic)&&isbetween(colKIND,tile_background_wallA,tile_background_wallB)&&(what==0))
@@ -1644,7 +1647,7 @@ int hero_play(_game*gm,_act*hero)
              {blockhitX=colX;blockhitY=colY;blockhitTD=0;blockhitT=0;}
             if(what)
              {
-              bonus_add(blockhitX,blockhitY,what);              
+              bonus_add(gm,blockhitX,blockhitY,what);              
               tile_set(layer_elements,colX,colY,0);
              }
             if(colKIND==tile_background_blockQH)

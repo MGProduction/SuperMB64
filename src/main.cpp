@@ -48,6 +48,11 @@
 //
 // ************************************************************
 
+#define GAMEPAD_SUPPORT
+#define AUDIO_SUPPORT
+//#define USE_OGG
+#define USE_MP3
+
 // ************************************************************
 // INCLUDES
 // ************************************************************
@@ -98,9 +103,15 @@
 // ************************************************************
 // INCLUDES [AUDIO DECODING]
 // ************************************************************
-#define AUDIO_SUPPORT
 #if defined(AUDIO_SUPPORT)
-#define USE_MP3
+#if defined(USE_MINIAUDIO)
+#define MINIAUDIO_IMPLEMENTATION
+//#define MA_ENABLE_ONLY_SPECIFIC_BACKENDS
+#define MA_NO_FLAC
+#define MA_NO_MP3
+#define MA_NO_ENCODING
+#include "libs/miniaudio.h"
+#endif
 #if defined(USE_OGG)
 #include "stb/stb_vorbis.c"
 #endif
@@ -112,13 +123,54 @@
 #endif
 
 // ************************************************************
+// INCLUDES [GAMEPAD]
+// ************************************************************
+
+#if defined(GAMEPAD_SUPPORT)
+#ifdef _WIN32
+#define GAMEPAD_IMPLEMENTATION
+#include "gustavsson/gamepad.h"
+#else
+    typedef struct gamepad_state_t {
+	    uint16_t buttons;
+	    uint8_t trigger_left;
+	    uint8_t trigger_right;
+	    int16_t stick_left_x;
+	    int16_t stick_left_y;
+	    int16_t stick_right_x;
+	    int16_t stick_right_y;
+	} gamepad_state_t;
+
+
+    typedef enum gamepad_button_t {
+	    GAMEPAD_DPAD_UP = 0x0001,
+	    GAMEPAD_DPAD_DOWN = 0x0002,
+	    GAMEPAD_DPAD_LEFT = 0x0004,
+	    GAMEPAD_DPAD_RIGHT = 0x0008,
+	    GAMEPAD_START = 0x0010,
+	    GAMEPAD_BACK = 0x0020,
+	    GAMEPAD_STICK_LEFT = 0x0040,
+	    GAMEPAD_STICK_RIGHT = 0x0080,
+	    GAMEPAD_SHOULDER_LEFT = 0x0100,
+	    GAMEPAD_SHOULDER_RIGHT = 0x0200,
+	    GAMEPAD_A = 0x1000,
+	    GAMEPAD_B = 0x2000,
+	    GAMEPAD_X = 0x4000,
+	    GAMEPAD_Y = 0x8000,
+	} gamepad_button_t;
+#endif
+#endif
+
+// ************************************************************
+
+// ************************************************************
 // INCLUDES [STRING / IMAGES / AUDIO]
 // ************************************************************
 
 #define MINILIB_IMPLEMENTATION
 #include "mg/minilib.h"
 #if defined(AUDIO_SUPPORT)
-#include "gustavsson/audio.h"
+#include "mg/audio.h"
 #endif
 #define MGIMG_IMPLEMENTATION
 #include "mg/img.h"
@@ -146,9 +198,21 @@ int GAME_WIDTH,GAME_HEIGHT,GAME_FRAMERATE;
 
 _anim font;
 
+#if defined(GAMEPAD_SUPPORT)
+#ifdef _WIN32
+gamepad_t* gamepad;
+#endif
+#endif
+
 void game_start(_game*game)
 {
  anim_load(&font,"font");
+#if defined(GAMEPAD_SUPPORT)
+ #ifdef _WIN32
+ gamepad = gamepad_create( NULL );
+ #endif
+#endif
+
 #if defined(_DEBUG)
  game->scene=&home;
 #else
@@ -160,6 +224,11 @@ void game_start(_game*game)
 
 void game_end(_game*game)
 {
+#if defined(GAMEPAD_SUPPORT)
+ #ifdef _WIN32
+ gamepad_destroy( gamepad );
+ #endif
+#endif
  anim_unload(&font);
  if(game->scene)
   game->scene->leave(game,NULL);
@@ -279,13 +348,24 @@ int game_getinput(_game*gm)
 #endif
       }
   }
+
+#if defined(GAMEPAD_SUPPORT)
+ gamepad_state_t padstate = { 0 };
+ #ifdef _WIN32
+ gamepad_read( gamepad, 0, &padstate );
+ #endif
+ if( padstate.buttons & GAMEPAD_A )
+  gm->input.key_control = true;
+#endif
+
  return 1;
 }
 
 int app_proc( app_t* app, void* user_data )
 {
     (void) user_data;            
-    _game  game;
+    _game   game;
+    APP_U32 dummy = 0;
     memset(&game,0,sizeof(game));
 
     GAME_WIDTH=res_getvalue("#width",64);
@@ -308,10 +388,10 @@ int app_proc( app_t* app, void* user_data )
             }
         }
         // calculate aspect locked width/height
-        int scrwidth = displays.displays[ disp ].width - 80;
-        int scrheight = displays.displays[ disp ].height - 80;
-        int aspect_width = (int)( ( scrheight * 3 ) / 4 );
-        int aspect_height = (int)( ( scrwidth * 4 ) / 3 );
+        int scrwidth = displays.displays[ disp ].width;
+        int scrheight = displays.displays[ disp ].height;
+        int aspect_width = (int)( ( scrheight * GAME_WIDTH ) / GAME_HEIGHT );
+        int aspect_height = (int)( ( scrwidth * GAME_HEIGHT ) / GAME_WIDTH );
         int target_width, target_height;
         if( aspect_height <= scrheight ) {
             target_width = scrwidth;
@@ -343,10 +423,21 @@ int app_proc( app_t* app, void* user_data )
     app_screenmode( app, game.fullscreen ? APP_SCREENMODE_FULLSCREEN : APP_SCREENMODE_WINDOW );
     app_title( app, res_getstring("#title","miniMG") );
 
+     // No mouse cursor    
+    app_pointer( app, 1, 1, &dummy, 0, 0 );
+
     frametimer_t* frametimer = frametimer_create( NULL );
     frametimer_lock_rate( frametimer, GAME_FRAMERATE );
 #if defined(AUDIO_SUPPORT)
     audio_new(&game);
+#if defined(USE_MINIAUDIO)
+    ma_result result;
+    ma_engine engine;
+    result = ma_engine_init(NULL, &engine);
+    if (result != MA_SUCCESS) {
+        return -1;
+    }
+#endif
 #endif
 
     img_new(&canvas,GAME_WIDTH,GAME_HEIGHT);
@@ -380,6 +471,9 @@ int app_proc( app_t* app, void* user_data )
 
     frametimer_destroy( frametimer );
 #if defined(AUDIO_SUPPORT)
+#if defined(USE_MINIAUDIO)
+    ma_engine_uninit(&engine);
+#endif
     audio_delete(&game);
 #endif
 

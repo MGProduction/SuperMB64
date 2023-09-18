@@ -32,12 +32,12 @@ typedef struct __game{
 
  int              error;
 
- //data_t          *data;
- int              frame_counter;
 #if defined(AUDIO_SUPPORT)
- sound_t          music;
- sound_channel_t sounds[ 16 ];
- sound_context_t sound_context;
+ _sound_channel   music;
+ _sound_channel   queuedsounds[MAX_CONTEXTSOUNDS];
+ int              queuedlen,emittedsounds;
+ _sound_context   sound_context;
+ int              soundid;
 #endif
 }_game;
 
@@ -54,38 +54,36 @@ int game_setscene(_game*gm,_scene*next)
 }
 
 #if defined(AUDIO_SUPPORT)
-sound_t sound( _game* game, int soundfile_id/*const char* filename*/ ) {
-    sound_t snd;
-    snd.sample_pairs = NULL;//load_samples( game->data, filename, &snd.sample_pairs_count );
-    return snd;
+
+void play_music( _game* game, int musicid, float volume, float delay )
+{
+    _sound*music=audio_get(musicid);
+    game->music.age = game->tick;
+    game->music.current_position = -(int)( 44100.0f * delay );
+    game->music.volume = volume;
+    game->music.sound=music;
+    game->music.id=game->soundid++;
 }
 
 
-void play_music( _game* game, sound_t music ) {
-    game->music = music;
-}
-
-
-void queue_sound( _game* game, sound_t sound, float volume, float delay ) {
-    int index = -1;
-    int age = game->frame_counter + 1;
-    for( int i = 0; i < sizeof( game->sounds ) / sizeof( *game->sounds ); ++i ) {
-        if( game->sounds[ i ].age < age ) {
-            index = i;
-            age = game->sounds[ i ].age;
-        }
-    }
-    sound_channel_t* channel = &game->sounds[ index ];
-    channel->age = game->frame_counter;
+void queue_sound( _game* game, _sound*sound, float volume, float delay )
+{
+ if(sound)
+  if(game->queuedlen<sizeof( game->queuedsounds ) / sizeof( *game->queuedsounds ))
+   {
+    _sound_channel* channel = &game->queuedsounds[ game->queuedlen++ ];
+    channel->age = game->tick;
     channel->current_position = -(int)( 44100.0f * delay );
-    channel->sample_pairs = sound.sample_pairs;
-    channel->sample_pairs_count = sound.sample_pairs_count;
     channel->volume = volume;
+    channel->sound=sound;   
+    channel->id=game->soundid++;
+   }
 }
 
 
-void play_sound( _game* game, sound_t sound, float volume ) {
-    queue_sound( game, sound, volume, 0.0f );
+void play_sound( _game* game, int soundid, float volume )
+{
+    queue_sound( game, audio_get(soundid), volume, 0.0f );
 }
 
 void audio_new(_game*gm)
@@ -99,21 +97,32 @@ void audio_new(_game*gm)
 
 void audio_render(_game* game)
 {
- int i;
  #ifndef __wasm__
  thread_mutex_lock( &game->sound_context.mutex );
  #endif
- if( game->sound_context.music_sample_pairs != game->music.sample_pairs )
- {
-    game->sound_context.music_sample_pairs = game->music.sample_pairs;
-    game->sound_context.music_sample_pairs_count = game->music.sample_pairs_count;
-    game->sound_context.music_current_position = 0;
- }
- for( i = 0; i < sizeof( game->sound_context.sounds ) / sizeof( *game->sound_context.sounds ); ++i ) {
-    if( game->sounds[ i ].age > game->sound_context.sounds[ i ].age ) {
-        game->sound_context.sounds[ i ] = game->sounds[ i ];
-    }
- }
+ if( game->sound_context.music.sound != game->music.sound )
+  game->sound_context.music=game->music;
+ if(game->queuedlen)
+  {
+   while(game->queuedlen--)
+    {
+     int j,dj=-1,distantage=game->tick,hm=sizeof( game->sound_context.sounds ) / sizeof( *game->sound_context.sounds );
+     for(j=0;j<hm;j++)
+      if(game->sound_context.sounds[j].sound==NULL)
+       {
+        game->sound_context.sounds[j]=game->queuedsounds[game->queuedlen];
+        break;
+       }
+      else
+       if(game->sound_context.sounds[j].age<distantage)
+        {distantage=game->sound_context.sounds[j].age;dj=j;}
+     if(j==hm)
+      if(dj!=-1)
+       game->sound_context.sounds[dj]=game->queuedsounds[game->queuedlen];
+    } 
+   game->emittedsounds++;
+   game->queuedlen=0;
+  }
  #ifndef __wasm__
  thread_mutex_unlock( &game->sound_context.mutex );
  #endif

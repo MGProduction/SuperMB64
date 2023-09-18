@@ -46,4 +46,9 @@ castleflag=sprite_castleflag.ase
 
 brickfragments=sprite_brickfragments.ase
 
+// sounds
 
+snd_coin=audio/smb_coin.wav.mp3
+snd_stomp=audio/smb_stomp.wav.mp3
+snd_jump=audio/smb_jump-small.wav.mp3
+snd_jumpsuper=audio/smb_jump-super.wav.mp3

@@ -60,6 +60,7 @@ wasm
 *.html
 src/mg/ase*
 src/stb
+res/SMB/audio
 
 *.ncb
 *.aps

@@ -13,7 +13,7 @@ _img    canvas;
 
 // ************************************************************
 
-int     snd_coin,snd_jumpA,snd_jumpB,snd_stomp;
+int     snd_coin,snd_jumpA,snd_jumpB,snd_stomp,snd_powerupappears,snd_powerup,snd_1up,snd_fireball,snd_kick,snd_breakblock,snd_pipe;
 
 // ************************************************************
 
@@ -378,10 +378,13 @@ int actors_zxsort(const void*a,const void*b)
   }
 }
 
+extern int anim_walk,anim_idle;
 void act_getaabb(_act*c,_aabb*box)
 {
  _framedesc*fr=getframe(c);
  float      w=fr->w,h=fr->h; 
+ if((c->kind==1)&&((h==10)||(h==9))&&((c->animid==anim_walk)||(c->animid==anim_idle)))
+  h=8;
  box->x=c->pos.x-w/2;box->w=w;
  box->y=c->pos.y-h;box->h=h;
 }

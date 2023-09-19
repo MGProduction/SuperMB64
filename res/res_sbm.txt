@@ -16,6 +16,7 @@ logo=supermb64_logo.png
 // level
 world_1x1=tilemap_smbw1x1.ase
 world_1x2=tilemap_smbw1x2.ase
+world_1x3=tilemap_smbw1x3.ase
 
 gui=sprite_gui.ase
 
@@ -25,8 +26,8 @@ mariofire=sprite_minimariohif.ase
 
 goomba=sprite_minigoomba.ase
 goombaunderground=sprite_minigoombaunderground.ase
-greentroopa=sprite_minigreentroopa.ase
-redtroopa=sprite_miniredtroopa.ase
+greentroopa=sprite_minigreentroopa.ase#croptop
+redtroopa=sprite_miniredtroopa.ase#croptop
 
 coin=sprite_coin.ase
 
@@ -49,6 +50,13 @@ brickfragments=sprite_brickfragments.ase
 // sounds
 
 snd_coin=audio/smb_coin.wav.mp3
+snd_powerup=audio/smb_powerup.wav.mp3
+snd_1up=audio/smb_1-up.wav.mp3
+snd_powerupappears=audio/smb_powerup_appears.wav.mp3
+snd_kick=audio/smb_kick.wav.mp3
+snd_fireball=audio/smb_fireball.wav.mp3
 snd_stomp=audio/smb_stomp.wav.mp3
+snd_breakblock=audio/smb_breakblock.wav.mp3
 snd_jump=audio/smb_jump-small.wav.mp3
 snd_jumpsuper=audio/smb_jump-super.wav.mp3
+snd_pipe=audio/smb_pipe.wav.mp3

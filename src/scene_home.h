@@ -36,9 +36,21 @@ void animid_init()
 void snd_load()
 {
  snd_coin=audio_load("snd_coin");
+ 
+ snd_powerupappears=audio_load("snd_powerupappears");
+ snd_powerup=audio_load("snd_powerup");
+ snd_1up=audio_load("snd_1up");
+
+ snd_kick=audio_load("snd_kick");
+ snd_fireball=audio_load("snd_fireball");
+
  snd_jumpA=audio_load("snd_jump");
  snd_jumpB=audio_load("snd_jumpsuper");
+
  snd_stomp=audio_load("snd_stomp");
+ snd_breakblock=audio_load("snd_breakblock");
+
+ snd_pipe=audio_load("snd_pipe");
 }
 
 void snd_unload()

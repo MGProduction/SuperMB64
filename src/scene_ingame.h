@@ -27,9 +27,20 @@
 #define tile_background_pipeupML 16
 #define tile_background_pipeupMR 17
 
-#define tile_background_blockC1 24
-#define tile_background_blockC2 25
-#define tile_background_blockC3 26
+#define tile_background_rblock1 24
+#define tile_background_rblock2 25
+#define tile_background_rblock3 26
+
+#define tile_background_mblock1 27
+#define tile_background_mblock2 28
+
+#define tile_background_mblock3 29
+#define tile_background_mblock4 30
+#define tile_background_mblock5 31
+
+#define tile_background_blockC1 32
+#define tile_background_blockC2 33
+#define tile_background_blockC3 34
 
 #define tile_background_blockQH 10
 
@@ -38,12 +49,12 @@
 #define tile_background_pipeA   12
 #define tile_background_pipeZ   23
 
-#define tile_background_coin    24
+#define tile_background_coin    32
 
-#define tile_background_pole    27
+#define tile_background_pole    35
 
 #define tile_solid_start        tile_background_groundA 
-#define tile_solid_end          tile_background_pipeZ
+#define tile_solid_end          tile_background_mblock5
 
 // ************************************************************
 
@@ -67,6 +78,9 @@
 
 #define worldarea_enter     13
 #define worldarea_exit      17
+
+#define worldarea_enter2    21
+#define worldarea_exit2     25
 
 #define bonus_fireflower    9
 #define bonus_fragments     10
@@ -169,7 +183,7 @@ void goomba_backdie(_act*goomba);
 char      guimsg[32];
 _anim     gui;
 _actplay  charplay[]={hero_play,movingelements_play,movingelements_play,coin_play,movingelements_play,movingelements_play};
-short     lives,coins,score,secs,rsecs;
+int       lives,coins,score,secs,rsecs;
 short     wrld,lv;
 short     changearea,changelevel,currentarea;
 _act*     flag;
@@ -184,6 +198,12 @@ byte      blockdisplacement[]={1,2,3,3,2,1,0};
 int level_loadarea(_game*gm,short newarea,int flags)
 {
  _act bhero; 
+ int  mbase=worldarea_exit;
+ if((newarea!=-1)&&(newarea&128))
+  {
+   newarea&=127;
+   mbase=worldarea_exit2;
+  }
  
  if(hero)
   memcpy(&bhero,hero,sizeof(bhero));
@@ -201,7 +221,7 @@ int level_loadarea(_game*gm,short newarea,int flags)
    currentarea=newarea;changelevel=changearea=-1;
    worldarea=&worldareas[currentarea];
    if(flags&4)
-    herokey=worldarea_exit+currentarea;
+    herokey=mbase+currentarea;
    if(flags&(1|2))
     {
      int x,y,tw=level.tilemap[layer_elements].tilew,th=level.tilemap[layer_elements].tileh;
@@ -273,6 +293,7 @@ int level_loadarea(_game*gm,short newarea,int flags)
     {
      hero->pos.x+=4;
      hero_setautopipemode(hero,autostatus_upthepipe);
+     play_sound(gm,snd_pipe,1.0f);
     }
    else
     if((wrld==1)&&(lv==2)&&(currentarea==0))
@@ -661,9 +682,8 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
        {
         float dy=(b->y+b->h)-a->y;
         if(dy>0)
-         ;
-        else
-         delta->y=dy;
+         dy=0;
+        delta->y=dy;
        }
      }
    return 1;
@@ -674,7 +694,7 @@ int aabb_intersect(_aabb*a,_aabb*b,_fpos*delta)
 
 int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid,int simple)
 {
- int   txx,tyy,x,y,tw=level.tilemap[layer_map].tilew,th=level.tilemap[layer_map].tileh,cnt=0,ay,by,ax,bx,lx,ly,stop=0;
+ int   txx,tyy,x,y,tw=level.tilemap[layer_map].tilew,th=level.tilemap[layer_map].tileh,cnt=0,ay,by,ax,bx,lx,ly,stop=0,coins=0;
  _aabb tile[8];
  _ipos ptile[8];
  word  wtile[8];
@@ -705,7 +725,8 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid,int simple)
            if(aabb_check(box,&tile[cnt],delta->x,delta->y))
             {
              coin_take(1);
-             tile_set(layer_map,(txx+x),(tyy+y),0);      
+             tile_set(layer_map,(txx+x),(tyy+y),0);    
+             coins++;
             }
           }
         }
@@ -728,52 +749,55 @@ int handle_aabbcollisioncore(_aabb*box,_fpos*delta,int solid,int simple)
            }
          }
      }
- if(cnt)
-  if(simple)
-   ;
+ if(simple)
+  if(simple==2)
+   cnt=coins;
   else
-   {
-    int   n,rcnt=0;
-    if(cnt>1)
+   ;
+ else
+ if(cnt)
+  {
+   int   n,rcnt=0;
+   if(cnt>1)
+    {
+     n=0;
+     while(n<cnt-1)
+      {
+       float distA=aabb_distance(box,&tile[n],delta->x,delta->y);
+       float distB=aabb_distance(box,&tile[n+1],delta->x,delta->y);
+       if(distA>distB)
+        {
+         _aabb t=tile[n];
+         _ipos tp=ptile[n];
+         word  tw=wtile[n];
+         tile[n]=tile[n+1];
+         tile[n+1]=t;
+         ptile[n]=ptile[n+1];
+         ptile[n+1]=tp;
+         wtile[n]=wtile[n+1];
+         wtile[n+1]=tw;
+         if(n)
+          n--;
+        }
+       else
+        n++;
+      }
+    }
+   colX=-1;
+   for(n=0;n<cnt;n++)
+    if(aabb_intersect(box,&tile[n],delta))
      {
-      n=0;
-      while(n<cnt-1)
+      rcnt++;
+      if(colX==-1)
        {
-        float distA=aabb_distance(box,&tile[n],delta->x,delta->y);
-        float distB=aabb_distance(box,&tile[n+1],delta->x,delta->y);
-        if(distA>distB)
-         {
-          _aabb t=tile[n];
-          _ipos tp=ptile[n];
-          word  tw=wtile[n];
-          tile[n]=tile[n+1];
-          tile[n+1]=t;
-          ptile[n]=ptile[n+1];
-          ptile[n+1]=tp;
-          wtile[n]=wtile[n+1];
-          wtile[n+1]=tw;
-          if(n)
-           n--;
-         }
-        else
-         n++;
+        colX=ptile[n].x;
+        colY=ptile[n].y;
+        colKIND=wtile[n];
        }
      }
-    colX=-1;
-    for(n=0;n<cnt;n++)
-     if(aabb_intersect(box,&tile[n],delta))
-      {
-       rcnt++;
-       if(colX==-1)
-        {
-         colX=ptile[n].x;
-         colY=ptile[n].y;
-         colKIND=wtile[n];
-        }
-      }
-    if(rcnt>1)
-     rcnt=0;
-   }
+   if(rcnt>1)
+    rcnt=0;
+  }
  return cnt;
 }
 
@@ -795,12 +819,15 @@ void coin_take(int addscore)
  if(addscore) score+=200;
 }
 
-int coin_collect(_act*c,_fpos*delta)
+int coin_collect(_game*gm,_act*c,_fpos*delta)
 {
  _aabb box; 
  act_getaabb(c,&box); 
- if(handle_aabbcollisioncore(&box,delta,0,1))
-  return 1;
+ if(handle_aabbcollisioncore(&box,delta,0,2))
+  {
+   play_sound(gm,snd_coin,1.0f);
+   return 1;
+  }
  return 0;
 }
 
@@ -836,6 +863,12 @@ int act_ondownsecretpssage(_act*c,short*newarea)
    return 1;
   }
  else
+ if(isbetween(tile,worldarea_enter2,worldarea_enter2+3))
+  {
+   if(newarea) *newarea=(tile-worldarea_enter2)|128;
+   return 1;
+  }
+ else
   return 0;
 }
 
@@ -854,6 +887,12 @@ int act_onleftrightsecretpssage(_act*c,short*newarea)
    if(isbetween(tile,worldarea_enter,worldarea_exit-1))
     {
      if(newarea) *newarea=tile-worldarea_enter;
+     return 1;
+    }
+   else
+   if(isbetween(tile,worldarea_enter2,worldarea_exit2-1))
+    {
+     if(newarea) *newarea=(tile-worldarea_enter2)|128;
      return 1;
     }
   }
@@ -997,6 +1036,7 @@ void bonus_add(_game*gm,int x,int y,int tile)
      tmp->zorder=-1;
      tmp->defspeed=goomba_speed;
      tmp->play=movingelements_play;tmp->timer=th;
+     play_sound(gm,snd_powerupappears,1.0f);
      if(tile==bonus_magicmushroom)
       {       
        if(hero->status&status_magic)
@@ -1040,6 +1080,7 @@ int fireflower_play(_game*gm,_act*goomba)
  if((fabs(goomba->pos.x-hero->pos.x)<10)&&(fabs(goomba->pos.y-hero->pos.y)<10))
   if(act_intersect(goomba,hero))
    {
+    play_sound(gm,snd_powerup,1.0f);
     if((hero->status&status_magic)==0)
      hero_grow(hero);     
     else
@@ -1172,18 +1213,21 @@ int movingelements_play(_game*gm,_act*goomba)
   if(act_intersect(goomba,hero))
    if(goomba->kind==bonus_star)
     {
+     play_sound(gm,snd_powerup,1.0f);
      hero->nextstatus|=status_star;
      return 0;
     }
    else
    if(goomba->kind==bonus_mushroom1up)
     {
+     play_sound(gm,snd_1up,1.0f);
      lives++;
      return 0;
     }
    else
    if(goomba->kind==bonus_magicmushroom)
     {
+     play_sound(gm,snd_powerup,1.0f);
      hero->nextstatus|=status_grow;     
      return 0;
     }
@@ -1204,6 +1248,7 @@ int movingelements_play(_game*gm,_act*goomba)
       }
      else
       {
+       play_sound(gm,snd_kick,1.0f);
        act_setanim(goomba,anim_die);
        score_add(goomba->pos.x,goomba->pos.y,100);
       }
@@ -1284,7 +1329,7 @@ void hero_grow(_act*hero)
  act_setanim(hero,anim_grow);     
 }
 
-void hero_fire(_act*hero)
+void hero_fire(_game*gm,_act*hero)
 {
  _act*tmp=actor_get();    
  if(tmp)
@@ -1304,7 +1349,8 @@ void hero_fire(_act*hero)
    tmp->animset=&charanim[tile-1];
    tmp->kind=bonus_fireball;tmp->flags|=sprite_visible;
    act_setanim(hero,anim_fire);
-   act_setanim(tmp,anim_idle);   
+   act_setanim(tmp,anim_idle);  
+   play_sound(gm,snd_fireball,1.0f);
   }
 }
 
@@ -1372,7 +1418,10 @@ void hero_handlenextstatus(_game*gm,_act*hero)
         act_setanim(hero,anim_jump);
         hero->status|=status_jump;
         hero->dpos.y=-hero_topjumpspeed;
-        play_sound(gm,snd_jumpA,1);
+        if(hero->status&status_magic)
+         play_sound(gm,snd_jumpB,1.0f);
+        else
+         play_sound(gm,snd_jumpA,1.0f);
        }
       if(hero->nextstatus&status_grow)
        hero_grow(hero);
@@ -1476,7 +1525,7 @@ int hero_play(_game*gm,_act*hero)
  if(hero->nextstatus)
   hero_handlenextstatus(gm,hero);
 
- if(!fbox_ispointinborder(&hero->pos,worldarea,(float)(GAME_WIDTH*2),(float)16))
+ if(!fbox_ispointinborder(&hero->pos,worldarea,(float)(GAME_WIDTH*2),(float)32))
   {
    hero_died(hero);
    return 0; 
@@ -1492,7 +1541,7 @@ int hero_play(_game*gm,_act*hero)
   if(hero->status&status_fire)
    {
     gm->input.key_control=false;
-    hero_fire(hero);
+    hero_fire(gm,hero);
    }
 
  if(hero->animid==0)
@@ -1586,24 +1635,33 @@ int hero_play(_game*gm,_act*hero)
        act_setanim(hero,anim_jump);
        hero->status|=status_jump;
        hero->dpos.y-=hero_topjumpspeed+float_min(0.5f,abs(hero->dpos.x));
-       play_sound(gm,snd_jumpA,1);
+       play_sound(gm,snd_jumpA,1.0f);
       }
     }
    else
     if(gm->input.key_down)
      {
       if(act_ondownsecretpssage(hero,&changearea))
-       hero_setautopipemode(hero,autostatus_downthepipe);              
+       {
+        hero_setautopipemode(hero,autostatus_downthepipe);              
+        play_sound(gm,snd_pipe,1.0f);
+       }
      }   
    if(hero->dpos.x||hero->dpos.y)
     {
      _fpos delta={hero->dpos.x,hero->dpos.y};  
      int   fnd=0,nomove=0;
-     if(coin_collect(hero,&delta))
+     if(coin_collect(gm,hero,&delta))
       fnd++;
      if((hero->dpos.x>0)&&act_onleftrightsecretpssage(hero,&changearea))
       {
-       hero_setautopipemode(hero,autostatus_rightthepipe);      
+       if(hero->autostatus==autostatus_rightthepipe)
+        ;
+       else
+        {
+         hero_setautopipemode(hero,autostatus_rightthepipe);      
+         play_sound(gm,snd_pipe,1.0f);
+        }
        act_setanim(hero,anim_walk);
       }
      else
@@ -1638,13 +1696,14 @@ int hero_play(_game*gm,_act*hero)
            {
             tile_set(layer_map,colX,colY,0);
             fragments_add(colX,colY);
+            play_sound(gm,snd_breakblock,1.0f);
            }
           else
            {
             if((blockhitX==colX)&&(blockhitY==colY))
              ;
             else
-             {blockhitX=colX;blockhitY=colY;blockhitTD=0;blockhitT=0;}
+             {blockhitX=colX;blockhitY=colY;blockhitTD=0;blockhitT=0;play_sound(gm,snd_stomp,1.0f);}
             if(what)
              {
               bonus_add(gm,blockhitX,blockhitY,what);              
